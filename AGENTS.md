@@ -1,0 +1,33 @@
+# AGENTS.md
+
+## 프로젝트
+《막 너머의 사람들》(Behind the Curtain): 인형사가 조종하는 적 인형 파티와 싸우는 협동 PvE 온라인 RPG.
+기획은 docs/worldbuilding.md, docs/planning.md 참고.
+
+용어 (코드 식별자):
+- 연출가 = Director, 인형 = Puppet, 합동 공격 = JointAttack, 조종 실의 연결부 = ConnectionPoint
+- 카운터 = Counter, 전조 = Telegraph, 원정 = Expedition, 교전 = Encounter
+- 간섭 방식: Cut(근접 베기), Shoot(투사체), Disrupt(신호 교란)
+
+## 코드 규칙
+- 규칙 코어는 src/Core (netstandard2.1, Unity·외부 패키지 참조 금지). 클라이언트와 서버가 함께 쓴다.
+- 테스트는 tests/Core.Tests (xUnit, net10.0). 새 규칙에는 반드시 테스트를 추가한다.
+- 시간은 double 초가 아니라 정수 tick을 쓴다.
+- 무작위는 주입된 시드로만 쓴다. 같은 입력과 시드면 항상 같은 결과가 나와야 한다.
+- 잘못된 입력이나 전이는 가능하면 예외 대신 결과값으로 거부한다.
+- 새 NuGet 패키지를 추가하지 않는다. 필요하면 이유를 남기고 멈춘다.
+
+## 작업 방식
+- 요청된 범위만 수정한다.
+- 범위 밖에서 필요한 변경(버그, 누락된 규칙, 구조 개선)을 발견하면 고치지 말고,
+  마지막 메시지의 "제안" 섹션에 이유와 함께 남긴다.
+- 요청이 모호하면 합리적인 가정을 하고, 마지막 메시지의 "가정" 섹션에 적는다.
+- 기획 수치(임계값, 가중치 등)는 상수나 설정으로 분리하고 임의로 정한 값임을 표시한다.
+- 작업을 마치면 dotnet test tests/Core.Tests --no-restore를 실행하고 결과를 보고한다.
+
+## 커밋 규칙
+- 형식: <type>(<scope>): <요약>. type은 feat, fix, refactor, test, docs, chore.
+- 한 커밋에는 한 가지 목적만 담는다. 테스트가 통과하는 상태만 커밋한다.
+- 에이전트는 사람이 명시적으로 요청하지 않으면 커밋하지 않는다
+  (jevcode 실행 시 샌드박스가 .git 쓰기를 막는다).
+- push, 브랜치 삭제, 히스토리 재작성은 사람만 한다.
