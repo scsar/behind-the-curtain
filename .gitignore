@@ -9,12 +9,23 @@
 [Mm]emoryCaptures/
 [Rr]ecordings/
 
+# .NET build and test output (core, server, tools)
+[Bb]in/
+[Tt]est[Rr]esults/
+*.trx
+
 # IDE
 .vs/
 .idea/
+# Unity regenerates its own *.csproj / *.sln. Hand-written .NET projects
+# (rules core, server, tests) live in src/, server/, tests/ and are tracked.
 *.csproj
 *.sln
 *.slnx
+!/src/**/*.csproj
+!/server/**/*.csproj
+!/tests/**/*.csproj
+!/BehindTheCurtain.slnx
 *.user
 *.suo
 *.pidb
