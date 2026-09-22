@@ -42,7 +42,8 @@
 - 규칙 코어는 C# 9 이하 문법만 쓴다(Unity 6 호환, Core.csproj의 LangVersion 9.0).
 - 씬(.unity), 프리팹(.prefab), 에셋(.asset) YAML을 직접 만들거나 고치지 않는다.
   화면 구성은 런타임 코드(도형 생성, 카메라 배치)로 한다.
-- .meta 파일은 만들지 않는다. Unity가 생성하고, 사람이 따로 커밋한다.
+- .meta 파일은 만들지 않는다. Unity가 생성하고, 리뷰 화면의 "수락하고 커밋"이 이 run의 새 파일과 함께 자동으로 커밋한다.
+  그래서 "사람이 할 일"에 .meta 생성이나 커밋을 적지 않는다.
 - 입력은 새 Input System API(Keyboard.current, Mouse.current)로 직접 읽는다. InputActions 에셋을 고치지 않는다.
 - ProjectSettings/와 Packages/manifest.json은 요청받았을 때만 바꾼다.
 - 게임 규칙 판정은 반드시 src/Core를 통한다. Unity 스크립트에 판정 로직을 복제하지 않는다.
