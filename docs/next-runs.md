@@ -148,7 +148,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   1) 저장소 루트에 Directory.Build.props를 만들어 UseArtifactsOutput을 켠다(빌드 산출물을 artifacts/로). src/Core, tests 아래의 기존 bin/, obj/ 폴더는 삭제한다. .gitignore에 artifacts/를 추가한다. 이유: Unity가 패키지 폴더 안의 Core.dll까지 가져오면 같은 타입이 두 번 정의된다.
   2) src/Core/Core.csproj에 LangVersion 9.0을 설정한다(Unity 6 호환).
   3) src/Core에 package.json(name com.behindthecurtain.core, version 0.1.0, unity 6000.3, displayName Behind the Curtain Core)과 BehindTheCurtain.Core.asmdef(noEngineReferences true, rootNamespace BehindTheCurtain.Core)를 만든다. nullable 경고를 없애기 위해 asmdef 옆에 csc.rsp(-nullable:enable)를 둔다.
-  4) Packages/manifest.json의 dependencies에 \"com.behindthecurtain.core\": \"file:../src/Core\"를 추가한다.
+  4) Packages/manifest.json의 dependencies에 com.behindthecurtain.core 항목을 값 file:../src/Core 로 추가한다.
   5) Assets/Scripts/Prototype/BehindTheCurtain.Prototype.asmdef를 만들고 BehindTheCurtain.Core와 Unity.InputSystem을 참조한다.
   dotnet test tests/Core.Tests --no-restore -m:1이 계속 통과해야 한다. 마지막 메시지에 Unity에서 확인할 항목(패키지가 Package Manager에 보이는지, 콘솔 에러 0)을 적는다."
   ```
