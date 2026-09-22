@@ -39,8 +39,8 @@ public class SimulationTests
         Assert.StartsWith("Encounter 3 [AreaFirst] Area=0.70", lines[2]);
         Assert.Contains("NextTactic=SpreadFormation", lines[0]);
         // Current healer focus alone would choose GuardHealer; expedition memory changes that choice.
-        Assert.Contains("NextTactic=StandardFormation", lines[1]);
-        Assert.Contains("Memory Area=0.35 Healer=0.48 Ranged=0.40", lines[1]);
+        Assert.Contains("NextTactic=SpreadFormation", lines[1]);
+        Assert.Contains("Memory Area=0.56 Healer=0.48 Ranged=0.40", lines[1]);
         foreach (var line in lines)
         {
             Assert.Matches(@"Area=\d\.\d{2} Healer=\d\.\d{2} Ranged=\d\.\d{2} NextTactic=\w+ Counter=[0-2]/2", line);
@@ -142,17 +142,17 @@ public class SimulationTests
         var result = Run(args);
         Assert.Equal(result, Run(args));
         var lines = result.Split('\n');
-        Assert.Contains("Memory Area=0.00 Healer=0.80 Ranged=0.80", lines[2]);
+        Assert.Contains("Memory Area=0.56 Healer=0.80 Ranged=0.80", lines[2]);
         for (var i = 1; i <= 4; i++) Assert.Contains("NextTactic=GuardHealer", lines[i]);
         Assert.Contains("NextTactic=StandardFormation", Run(new[] { "--threshold", "1" }));
     }
 
     [Fact]
-    public void LegacyArgumentsPreserveNextTacticSequence()
+    public void LegacyArgumentsUseSlowerSuspicionFallInNextTacticSequence()
     {
         var lines = Run(new[] { "--seed", "1", "--encounters", "8" }).Split('\n');
-        var expected = new[] { "SpreadFormation", "StandardFormation", "SpreadFormation", "GuardHealer",
-            "StandardFormation", "GuardHealer", "StandardFormation", "GuardHealer" };
+        var expected = new[] { "SpreadFormation", "SpreadFormation", "SpreadFormation", "GuardHealer",
+            "SpreadFormation", "GuardHealer", "SpreadFormation", "GuardHealer" };
         for (var i = 0; i < expected.Length; i++)
             Assert.Contains($"NextTactic={expected[i]} ", lines[i + 1]);
     }

@@ -115,7 +115,7 @@ public sealed class DirectorObservationTests
         expedition.TryStartEncounter(out _);
         board = expedition.EncounterWorld!.GetBlackboard(Side.Puppets).Value;
         Assert.Equal(4, board.GetFact<AgentId>(TargetFactIds.HealerThreat).Value.Value);
-        Assert.False(board.GetFact<AgentId>(TargetFactIds.RangedThreat).Success);
+        Assert.Equal(2, board.GetFact<AgentId>(TargetFactIds.RangedThreat).Value.Value);
     }
     [Theory]
     [InlineData(false)]
@@ -134,9 +134,9 @@ public sealed class DirectorObservationTests
         var result = observer.EndEncounterWithIndividuals();
         Assert.True(expedition.EndEncounterWithIndividuals(result));
         Assert.False(expedition.EndEncounterWithIndividuals(result));
-        Assert.Equal(0.5, expedition.IndividualMemory[new AgentId(1)].HealerFocus);
+        Assert.Equal(0.8, expedition.IndividualMemory[new AgentId(1)].HealerFocus);
         Assert.Equal(0.5, expedition.IndividualMemory[new AgentId(1)].AreaDependency);
-        Assert.Equal(0.5, expedition.IndividualMemory[new AgentId(2)].AreaDependency);
+        Assert.Equal(0.9, expedition.IndividualMemory[new AgentId(2)].AreaDependency);
         if (active) expedition.TryStartEncounter(out _);
         expedition.EndExpedition();
         Assert.Empty(expedition.IndividualMemory);

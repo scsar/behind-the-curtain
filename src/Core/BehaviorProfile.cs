@@ -17,8 +17,10 @@ namespace BehindTheCurtain.Core
             foreach (TendencyId id in Enum.GetValues(typeof(TendencyId))) result[id] = 0;
             return new ReadOnlyDictionary<TendencyId, double>(result);
         }
-        private BehaviorProfile(Dictionary<TendencyId, double> values)
-        { this.values = new ReadOnlyDictionary<TendencyId, double>(values); }
+        private BehaviorProfile(Dictionary<TendencyId, double> values, bool hasAttacks)
+        { this.values = new ReadOnlyDictionary<TendencyId, double>(values); HasAttacks = hasAttacks; }
+        /// <summary>Observation metadata; tendency value equality deliberately excludes it.</summary>
+        public bool HasAttacks { get; }
         public IReadOnlyDictionary<TendencyId, double> Values => values ?? zeros;
         public double this[TendencyId id] => Values.TryGetValue(id, out var value) ? value : 0;
         public double AreaDependency => this[TendencyId.AreaDependency];
@@ -42,17 +44,22 @@ namespace BehindTheCurtain.Core
             }
         }
 
-        internal BehaviorProfile Merge(BehaviorProfile current, double decay)
+        internal BehaviorProfile Merge(BehaviorProfile current, ExpeditionSettings settings)
         {
             var merged = new Dictionary<TendencyId, double>();
             foreach (TendencyId id in Enum.GetValues(typeof(TendencyId)))
-                merged[id] = decay * this[id] + (1 - decay) * current[id];
-            return new BehaviorProfile(merged);
+            {
+                var next = current.HasAttacks ? current[id] : 0;
+                var weight = !current.HasAttacks ? settings.AbsentFallWeight
+                    : next > this[id] ? settings.RiseWeight : settings.FallWeight;
+                merged[id] = (1 - weight) * this[id] + weight * next;
+            }
+            return new BehaviorProfile(merged, HasAttacks || current.HasAttacks);
         }
         internal BehaviorProfile(long total, long area, long healer, long sustainedRanged)
             : this(new Dictionary<TendencyId, double> {
                 [TendencyId.AreaDependency] = total == 0 ? 0 : (double)area / total,
                 [TendencyId.HealerFocus] = total == 0 ? 0 : (double)healer / total,
-                [TendencyId.SustainedRanged] = total == 0 ? 0 : (double)sustainedRanged / total }) { }
+                [TendencyId.SustainedRanged] = total == 0 ? 0 : (double)sustainedRanged / total }, total > 0) { }
     }
 }

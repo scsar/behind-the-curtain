@@ -25,7 +25,7 @@ namespace BehindTheCurtain.Core
         /// <summary>Null means no encounter has completed, or the expedition has ended.</summary>
         public BehaviorProfile? Memory { get; private set; }
 
-        /// <summary>Rejects null dependencies and decay outside [0, 1), including NaN.</summary>
+        /// <summary>Rejects null dependencies and invalid memory weights or intentions.</summary>
         public static bool TryCreate(ExpeditionSettings? settings, ITacticSelector? selector,
             out Expedition? expedition)
         {
@@ -63,12 +63,12 @@ namespace BehindTheCurtain.Core
         {
             if (ended || !encounterActive) return false;
             var profile = observation.PartyProfile;
-            Memory = Memory.HasValue ? Memory.Value.Merge(profile, settings.Decay) : profile;
-            // No observation in this encounter contributes zero, just like an empty party profile.
+            Memory = Memory.HasValue ? Memory.Value.Merge(profile, settings) : profile;
+            // Missing attackers lose suspicion more slowly than observed changes in behavior.
             foreach (var id in new List<AgentId>(individualMemory.Keys))
             {
                 observation.IndividualProfiles.TryGetValue(id, out var current);
-                individualMemory[id] = individualMemory[id].Merge(current, settings.Decay);
+                individualMemory[id] = individualMemory[id].Merge(current, settings);
             }
             foreach (var pair in observation.IndividualProfiles)
                 if (!individualMemory.ContainsKey(pair.Key)) individualMemory.Add(pair.Key, pair.Value);

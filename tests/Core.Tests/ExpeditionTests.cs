@@ -27,21 +27,21 @@ public sealed class ExpeditionTests
         Assert.True(expedition.TryStartEncounter(out var second));
         Assert.Equal(TacticId.SpreadFormation, second.Id);
         Assert.True(expedition.EndEncounter(Profile(0, 4, 4)));
-        AssertProfile(expedition, 0.5, 0.5, 0.75);
+        AssertProfile(expedition, 0.8, 0.5, 0.75);
 
         // The latest profile alone would choose GuardHealer (tied margins, healer priority).
-        // Memory instead selects ShieldAdvance.
+        // Slowly falling area suspicion keeps SpreadFormation above ranged memory.
         Assert.True(expedition.TryStartEncounter(out var third));
-        Assert.Equal(TacticId.ShieldAdvance, third.Id);
+        Assert.Equal(TacticId.SpreadFormation, third.Id);
         Assert.True(expedition.EndEncounter(Profile(2, 4, 0)));
-        AssertProfile(expedition, 0.5, 0.75, 0.375);
+        AssertProfile(expedition, 0.74, 0.75, 0.6);
         Assert.True(expedition.TryStartEncounter(out var fourth));
         Assert.Equal(TacticId.GuardHealer, fourth.Id);
     }
 
     [Theory]
-    [InlineData(0, 0, 1, 0.5, 0.5, 0, 1)]
-    [InlineData(0.99, 0.99, 0.01, 0.7475, 0.9851, 0.0099, 0.750025)]
+    [InlineData(0, 0.8, 1, 0.7, 0.74, 0.8, 1)]
+    [InlineData(0.99, 0.8, 0.01, 0.7, 0.74, 0.008, 0.703)]
     public void DecayEndpoints_UseInjectedWeight(double decay, double area2, double healer2,
         double ranged2, double area3, double healer3, double ranged3)
     {

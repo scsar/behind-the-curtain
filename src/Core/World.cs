@@ -49,6 +49,14 @@ namespace BehindTheCurtain.Core
         private readonly Blackboard puppets = new Blackboard();
         private readonly Blackboard players = new Blackboard();
 
+        /// <summary>Immutable snapshots ordered by id, independent of insertion order.</summary>
+        public IReadOnlyList<AgentState> GetAgents()
+        {
+            var result = new List<AgentState>(agents.Values);
+            result.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
+            return result.AsReadOnly();
+        }
+
         public AiResult<Blackboard> GetBlackboard(Side side) => side == Side.Puppets
             ? AiResult<Blackboard>.Ok(puppets) : side == Side.Players
             ? AiResult<Blackboard>.Ok(players) : AiResult<Blackboard>.Fail(AiFailure.InvalidSide);
