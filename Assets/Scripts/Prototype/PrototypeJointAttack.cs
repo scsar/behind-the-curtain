@@ -1,0 +1,321 @@
+using System.Collections.Generic;
+using BehindTheCurtain.Core;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
+
+namespace BehindTheCurtain.Prototype
+{
+    /// <summary>Input and presentation adapter. Attack transitions and counter results belong to Core.</summary>
+    public sealed class PrototypeJointAttack : MonoBehaviour
+    {
+        private readonly PrototypeClock clock = new PrototypeClock();
+        private readonly List<Material> materials = new List<Material>();
+        private readonly HashSet<ConnectionPoint> severedViews = new HashSet<ConnectionPoint>();
+        private PrototypeSettings settings;
+        private Transform player;
+        private Transform[] puppets;
+        private Vector3[] restPositions;
+        private Quaternion[] restRotations;
+        private LineRenderer[] threads;
+        private Transform[] markers;
+        private JointAttackPlan plan;
+        private JointAttack attack;
+        private long nextAttackTick;
+        private long resultStartTick = -1;
+        private long rangeMessageUntil;
+        private string lastReason = "None";
+        private string rangeMessage;
+
+        public void Initialize(PrototypeSettings configuration, Transform playerTransform,
+            IReadOnlyList<Transform> puppetTransforms)
+        {
+            settings = configuration;
+            player = playerTransform;
+            // A provisional three-point layout exercises all input methods in one attack.
+            var points = new[] {
+                new ConnectionPoint(ConnectionPointKind.Thread, ConnectionPointPosition.Front),
+                new ConnectionPoint(ConnectionPointKind.Anchor, ConnectionPointPosition.Left),
+                new ConnectionPoint(ConnectionPointKind.Signal, ConnectionPointPosition.Right)
+            };
+            if (!JointAttackPlan.TryCreate(default, settings.TelegraphTicks, settings.CounterWindowTicks,
+                points, new FairnessRules(maxRequiredPointsPerAttack: settings.MaxRequiredPoints),
+                out plan, out var reason))
+            {
+                lastReason = $"Invalid prototype plan: {reason}";
+                enabled = false;
+                return;
+            }
+            if (puppetTransforms.Count < points.Length || settings.AttackWaitTicks < 1 ||
+                settings.ResultTicks < settings.CollapseTicks || settings.CollapseTicks < 1 ||
+                settings.ShakeTicks < 1 || settings.FlashTicks < 1 || settings.ThreadBlinkTicks < 1)
+            {
+                lastReason = "Invalid prototype presentation settings";
+                enabled = false;
+                return;
+            }
+
+            puppets = new Transform[puppetTransforms.Count];
+            restPositions = new Vector3[puppets.Length];
+            restRotations = new Quaternion[puppets.Length];
+            threads = new LineRenderer[puppets.Length];
+            markers = new Transform[points.Length];
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                puppets[i] = puppetTransforms[i];
+                restPositions[i] = puppets[i].position;
+                restRotations[i] = puppets[i].rotation;
+                var threadObject = new GameObject($"Control Thread {i + 1}");
+                threadObject.transform.SetParent(transform, false);
+                var line = threadObject.AddComponent<LineRenderer>();
+                line.sharedMaterial = CreateUnlitMaterial(settings.ThreadStartColor);
+                line.useWorldSpace = true;
+                line.positionCount = 3;
+                line.widthMultiplier = settings.ThreadWidth;
+                line.enabled = false;
+                threads[i] = line;
+                if (i >= markers.Length)
+                    continue;
+                var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                sphere.name = $"Connection {points[i].AllowedMethods}";
+                sphere.transform.SetParent(transform, false);
+                sphere.transform.localScale = Vector3.one * settings.ConnectionDiameter;
+                var collider = sphere.GetComponent<Collider>();
+                collider.enabled = false;
+                Destroy(collider);
+                sphere.GetComponent<Renderer>().sharedMaterial = CreateUnlitMaterial(MethodColor(points[i].AllowedMethods));
+                sphere.SetActive(false);
+                markers[i] = sphere.transform;
+            }
+            nextAttackTick = clock.Tick + settings.AttackWaitTicks;
+        }
+
+        private Color MethodColor(InterferenceMethod method)
+        {
+            switch (method)
+            {
+                case InterferenceMethod.Cut: return settings.CutColor;
+                case InterferenceMethod.Shoot: return settings.ShootColor;
+                default: return settings.DisruptColor;
+            }
+        }
+
+        private Material CreateUnlitMaterial(Color color)
+        {
+            var pipeline = GraphicsSettings.currentRenderPipeline;
+            var pipelineName = pipeline == null ? "" : pipeline.GetType().Name;
+            var shaderName = pipelineName.Contains("HDRender") ? "HDRP/Unlit"
+                : pipelineName.Contains("Universal") ? "Universal Render Pipeline/Unlit" : "Unlit/Color";
+            var shader = Shader.Find(shaderName);
+            var material = shader != null ? new Material(shader) : new Material(pipeline.defaultMaterial);
+            SetMaterialColor(material, color);
+            materials.Add(material);
+            return material;
+        }
+
+        private static void SetMaterialColor(Material material, Color color)
+        {
+            if (material.HasProperty("_UnlitColor")) material.SetColor("_UnlitColor", color);
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+        }
+
+        private void Update()
+        {
+            if (plan == null || puppets == null)
+                return;
+            clock.Advance(Time.deltaTime, OnTick);
+            if (!enabled)
+                return;
+            var keyboard = Keyboard.current;
+            if (Application.isFocused && keyboard != null)
+            {
+                if (keyboard.digit1Key.wasPressedThisFrame) TryCounter(InterferenceMethod.Cut);
+                if (keyboard.digit2Key.wasPressedThisFrame) TryCounter(InterferenceMethod.Shoot);
+                if (keyboard.digit3Key.wasPressedThisFrame) TryCounter(InterferenceMethod.Disrupt);
+            }
+            ObserveResult();
+            UpdatePresentation();
+        }
+
+        private void OnTick(long tick)
+        {
+            if (!enabled)
+                return;
+            if (resultStartTick >= 0 && tick - resultStartTick >= settings.ResultTicks)
+            {
+                attack = null;
+                resultStartTick = -1;
+                severedViews.Clear();
+                nextAttackTick = tick + settings.AttackWaitTicks;
+            }
+            if (attack == null && tick >= nextAttackTick)
+            {
+                if (!plan.TryCreateAttack(tick, out attack))
+                {
+                    lastReason = "Attack schedule rejected";
+                    enabled = false;
+                    return;
+                }
+            }
+            if (attack != null)
+                attack.Advance(tick);
+            ObserveResult();
+        }
+
+        private void ObserveResult()
+        {
+            if (attack == null || resultStartTick >= 0)
+                return;
+            switch (attack.State)
+            {
+                case JointAttackState.Broken:
+                case JointAttackState.Weakened:
+                case JointAttackState.Executed:
+                    resultStartTick = clock.Tick;
+                    break;
+            }
+        }
+
+        private Vector3 ConnectionPosition(int index)
+            => puppets[index].position + Vector3.up * settings.ConnectionHeight;
+
+        private void TryCounter(InterferenceMethod method)
+        {
+            ConnectionPoint target = null;
+            var closestDistance = float.PositiveInfinity;
+            if (attack != null && attack.State == JointAttackState.CounterWindowOpen)
+            {
+                for (var i = 0; i < attack.ConnectionPoints.Count; i++)
+                {
+                    var point = attack.ConnectionPoints[i];
+                    if (severedViews.Contains(point) || (point.AllowedMethods & method) == 0)
+                        continue;
+                    var distance = Vector3.Distance(player.position, ConnectionPosition(i));
+                    if (distance < closestDistance)
+                    {
+                        target = point;
+                        closestDistance = distance;
+                    }
+                }
+            }
+            var range = method == InterferenceMethod.Cut ? settings.CutRange
+                : method == InterferenceMethod.Disrupt ? settings.DisruptRange : float.PositiveInfinity;
+            if (target != null && closestDistance > range)
+            {
+                rangeMessage = $"{method}: out of range ({closestDistance:F1}m / {range:F1}m)";
+                rangeMessageUntil = clock.Tick + settings.RangeMessageTicks;
+                return;
+            }
+            var result = CounterResolver.Resolve(attack, clock.Tick, method, target);
+            lastReason = $"{method}: {(result.Success ? "Success" : result.FailureReason.ToString())}";
+            rangeMessage = null;
+            if (result.Success)
+                severedViews.Add(target); // Presentation cache, updated only from Core success.
+        }
+
+        private void UpdatePresentation()
+        {
+            var telegraphing = attack != null && attack.State == JointAttackState.Telegraphing;
+            var windowOpen = attack != null && attack.State == JointAttackState.CounterWindowOpen;
+            var tension = telegraphing ? Mathf.Clamp01((float)(clock.Tick - attack.TelegraphStartTick)
+                / Mathf.Max(1f, plan.TelegraphTicks)) : 1f;
+            var threadColor = Color.Lerp(settings.ThreadStartColor, settings.ThreadTautColor, tension);
+            if (windowOpen)
+            {
+                var pulse = 0.5f + 0.5f * Mathf.Sin((float)(clock.Tick % settings.ThreadBlinkTicks)
+                    / settings.ThreadBlinkTicks * Mathf.PI * 2f);
+                threadColor = Color.Lerp(settings.ThreadTautColor, settings.ThreadBlinkColor, pulse);
+            }
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                puppets[i].position = restPositions[i];
+                puppets[i].rotation = restRotations[i];
+                if (resultStartTick >= 0)
+                {
+                    var elapsed = clock.Tick - resultStartTick;
+                    if (attack.State == JointAttackState.Broken)
+                    {
+                        var progress = Mathf.Clamp01((float)elapsed / settings.CollapseTicks);
+                        puppets[i].rotation = restRotations[i] * Quaternion.Euler(0f, 0f, settings.CollapseAngle * progress);
+                        puppets[i].position -= Vector3.up * (settings.CollapseDrop * progress);
+                    }
+                    else if (attack.State == JointAttackState.Weakened && elapsed < settings.ShakeTicks)
+                    {
+                        var progress = (float)elapsed / settings.ShakeTicks;
+                        var angle = Mathf.Sin(progress * Mathf.PI * 2f * settings.ShakeCycles)
+                            * settings.ShakeAngle * (1f - progress);
+                        puppets[i].rotation = restRotations[i] * Quaternion.Euler(0f, 0f, angle);
+                    }
+                }
+                var severed = i < markers.Length && severedViews.Contains(plan.ConnectionPoints[i]);
+                var line = threads[i];
+                line.enabled = (telegraphing || windowOpen) && !severed;
+                if (line.enabled)
+                {
+                    var bottom = puppets[i].position + Vector3.up * (settings.PuppetSize / 2f);
+                    var top = restPositions[i] + Vector3.up * settings.ThreadHeight;
+                    line.SetPosition(0, bottom);
+                    line.SetPosition(1, (bottom + top) / 2f + Vector3.right * (settings.ThreadSag * (1f - tension)));
+                    line.SetPosition(2, top);
+                    SetMaterialColor(line.sharedMaterial, threadColor);
+                }
+                if (i < markers.Length)
+                {
+                    markers[i].position = ConnectionPosition(i);
+                    markers[i].gameObject.SetActive(windowOpen && !severed);
+                }
+            }
+        }
+
+        private void OnGUI()
+        {
+            if (settings == null)
+                return;
+            DrawResultOverlay();
+            var remaining = attack != null && attack.State == JointAttackState.CounterWindowOpen
+                ? System.Math.Max(0, attack.CounterWindow.End - clock.Tick + 1) : 0;
+            var required = plan != null ? plan.ConnectionPoints.Count : 0;
+            var broken = attack != null ? (int)System.Math.Round((1d - attack.Severity) * required) : 0;
+            GUI.Box(new Rect(8f, 8f, 460f, 130f), "");
+            GUI.Label(new Rect(12f, 12f, 450f, 120f),
+                $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
+                + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
+                + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
+                + (clock.Tick < rangeMessageUntil ? rangeMessage : ""));
+        }
+
+        private void DrawResultOverlay()
+        {
+            if (resultStartTick < 0 || attack == null)
+                return;
+            var progress = Mathf.Clamp01((float)(clock.Tick - resultStartTick) / settings.FlashTicks);
+            var previous = GUI.color;
+            if (attack.State == JointAttackState.Executed)
+            {
+                var color = settings.ExecutedScreenColor;
+                color.a *= 1f - progress;
+                GUI.color = color;
+                GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            }
+            else if (attack.State == JointAttackState.Weakened)
+            {
+                var color = settings.WeakenedScreenColor;
+                color.a *= 1f - progress;
+                GUI.color = color;
+                var edge = Mathf.Min(Screen.width, Screen.height) * settings.ScreenEdgeFraction;
+                GUI.DrawTexture(new Rect(0f, 0f, Screen.width, edge), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(0f, Screen.height - edge, Screen.width, edge), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(0f, edge, edge, Screen.height - 2f * edge), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(Screen.width - edge, edge, edge, Screen.height - 2f * edge), Texture2D.whiteTexture);
+            }
+            GUI.color = previous;
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var material in materials)
+                Destroy(material);
+        }
+    }
+}

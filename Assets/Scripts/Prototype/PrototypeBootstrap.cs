@@ -12,6 +12,7 @@ namespace BehindTheCurtain.Prototype
 
         private readonly List<Material> materials = new List<Material>();
         private Transform player;
+        private readonly List<Transform> puppets = new List<Transform>();
         private Camera followCamera;
         private enum ControlMode { CursorAim, LockedTurn }
 
@@ -69,6 +70,7 @@ namespace BehindTheCurtain.Prototype
                     var puppet = CreatePrimitive(PrimitiveType.Cube,
                         $"Puppet {row * 2 + column + 1}", position, settings.PuppetColor);
                     puppet.localScale = Vector3.one * settings.PuppetSize;
+                    puppets.Add(puppet);
                 }
             }
 
@@ -91,6 +93,7 @@ namespace BehindTheCurtain.Prototype
                 light = CreateChild("Directional Light").AddComponent<Light>();
             light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(settings.LightEulerAngles);
+            gameObject.AddComponent<PrototypeJointAttack>().Initialize(settings, player, puppets);
         }
 
         private T FindSceneComponent<T>() where T : Component
@@ -262,7 +265,7 @@ namespace BehindTheCurtain.Prototype
 
         private void OnGUI()
         {
-            GUI.Label(new Rect(12f, 12f, 300f, 24f), $"Mode: {mode} (Tab)");
+            GUI.Label(new Rect(12f, 142f, 300f, 24f), $"Mode: {mode} (Tab)");
         }
 
         private void OnDestroy()
