@@ -10,8 +10,11 @@ namespace BehindTheCurtain.Core
         public const long DefaultTelegraphTicks = 20;
         public const long DefaultCounterWindowTicks = 10;
 
-        private JointAttackPlan(long telegraphTicks, long counterWindowTicks, ConnectionPoint[] points)
+        private readonly FairnessRules rules;
+
+        private JointAttackPlan(long telegraphTicks, long counterWindowTicks, ConnectionPoint[] points, FairnessRules rules)
         {
+            this.rules = rules;
             TelegraphTicks = telegraphTicks;
             CounterWindowTicks = counterWindowTicks;
             ConnectionPoints = Array.AsReadOnly(points);
@@ -23,10 +26,18 @@ namespace BehindTheCurtain.Core
 
         public static bool TryCreate(Tactic tactic, long baseTelegraphTicks, long counterWindowTicks,
             IReadOnlyList<ConnectionPoint>? points, FairnessRules? rules, out JointAttackPlan? plan)
+            => TryCreate(tactic, baseTelegraphTicks, counterWindowTicks, points, rules, out plan, out _);
+
+        public static bool TryCreate(Tactic tactic, long baseTelegraphTicks, long counterWindowTicks,
+            IReadOnlyList<ConnectionPoint>? points, FairnessRules? rules, out JointAttackPlan? plan,
+            out AttackScheduleFailureReason reason)
         {
             plan = null;
-            if (rules == null || rules.MinCounterWindowTicks <= 0
-                || counterWindowTicks < rules.MinCounterWindowTicks || baseTelegraphTicks < 0
+            reason = AttackScheduleFailureReason.InvalidRules;
+            if (rules == null || !rules.IsValid)
+                return false;
+            reason = AttackScheduleFailureReason.InvalidPlan;
+            if (counterWindowTicks < rules.MinCounterWindowTicks || baseTelegraphTicks < 0
                 || tactic.PreparationTickCost < 0
                 || baseTelegraphTicks > long.MaxValue - tactic.PreparationTickCost
                 || points == null || points.Count == 0)
@@ -41,13 +52,29 @@ namespace BehindTheCurtain.Core
                     return false;
                 snapshot[i] = point;
             }
+            if (points.Count > rules.MaxRequiredPointsPerAttack)
+            {
+                reason = AttackScheduleFailureReason.TooManyRequiredPoints;
+                return false;
+            }
             plan = new JointAttackPlan(baseTelegraphTicks + tactic.PreparationTickCost,
-                counterWindowTicks, snapshot);
+                counterWindowTicks, snapshot, rules);
+            reason = AttackScheduleFailureReason.None;
             return true;
         }
 
         /// <summary>Window length counts inclusive ticks; execution is the next tick after its end.</summary>
         public bool TryCreateAttack(long startTick, out JointAttack? attack)
+        {
+            attack = null;
+            if (!AttackSchedule.TryCreate(new[] { new ScheduledAttackPlan(this, startTick) },
+                rules, out var schedule, out _))
+                return false;
+            attack = schedule!.Attacks[0];
+            return true;
+        }
+
+        internal bool TryCreateAttackUnchecked(long startTick, out JointAttack? attack)
         {
             attack = null;
             if (startTick > long.MaxValue - TelegraphTicks)
