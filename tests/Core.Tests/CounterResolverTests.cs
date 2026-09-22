@@ -64,14 +64,14 @@ public sealed class CounterResolverTests
     }
 
     [Fact]
-    public void Resolve_OnlyOneSuccessAcrossAllConnectionsAndTicks()
+    public void Resolve_OnlyOneSuccessPerConnectionAcrossTicks()
     {
         var first = new ConnectionPoint(InterferenceMethod.Cut);
         var second = new ConnectionPoint(InterferenceMethod.Shoot);
         var attack = Create(first, second);
         Assert.True(CounterResolver.Resolve(attack, 10, InterferenceMethod.Shoot, second).Success);
         AssertFailure(attack, 10, InterferenceMethod.Shoot, second, CounterFailureReason.AlreadyUsed);
-        AssertFailure(attack, 10, InterferenceMethod.Cut, first, CounterFailureReason.AlreadyUsed);
+        Assert.True(CounterResolver.Resolve(attack, 10, InterferenceMethod.Cut, first).Success);
         AssertFailure(attack, 20, InterferenceMethod.Cut, first, CounterFailureReason.AlreadyUsed);
         Assert.True(CounterResolver.Resolve(Create(first), 10, InterferenceMethod.Cut, first).Success);
     }

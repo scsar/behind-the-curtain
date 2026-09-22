@@ -25,16 +25,16 @@ namespace BehindTheCurtain.Core
         /// <summary>
         /// Resolves one method against an exposed connection instance. Failure leaves the attack unchanged.
         /// Precedence: already used, outside window (including stale ticks), missing connection, wrong method.
-        /// A null attack has no window. Success advances to the attempt tick and breaks the attack.
+        /// A null attack has no window. Success advances to the attempt tick and severs the target connection.
         /// Calls must be serialized by the attack's owner, as with Advance and Break.
         /// </summary>
         public static CounterResult Resolve(JointAttack? attack, long attemptTick,
             InterferenceMethod method, ConnectionPoint? target)
         {
-            if (attack != null && attack.State == JointAttackState.Broken)
+            if (attack != null && (attack.State == JointAttackState.Broken || attack.IsConnectionBroken(target)))
                 return new CounterResult(CounterFailureReason.AlreadyUsed);
 
-            if (attack == null || attack.State == JointAttackState.Executed ||
+            if (attack == null || attack.State == JointAttackState.Executed || attack.State == JointAttackState.Weakened ||
                 attemptTick < attack.CurrentTick || !attack.CounterWindow.Contains(attemptTick))
                 return new CounterResult(CounterFailureReason.OutsideWindow);
 
@@ -54,7 +54,7 @@ namespace BehindTheCurtain.Core
                 return new CounterResult(CounterFailureReason.MethodMismatch);
 
             attack.Advance(attemptTick);
-            attack.Break();
+            attack.Break(target);
             return new CounterResult(CounterFailureReason.None);
         }
     }

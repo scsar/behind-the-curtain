@@ -90,7 +90,15 @@ public sealed class JointAttackPlanTests
                     case "stale": Assert.True(attack.Advance(106)); break;
                     case "executed": Assert.True(attack.Advance(110)); break;
                     case "broken":
-                        Assert.True(CounterResolver.Resolve(attack, 100, InterferenceMethod.Cut, point).Success);
+                        foreach (var connection in attack.ConnectionPoints)
+                        {
+                            var allowed = (connection.AllowedMethods & InterferenceMethod.Cut) != 0
+                                ? InterferenceMethod.Cut
+                                : (connection.AllowedMethods & InterferenceMethod.Shoot) != 0
+                                    ? InterferenceMethod.Shoot : InterferenceMethod.Disrupt;
+                            Assert.True(CounterResolver.Resolve(attack, 100, allowed, connection).Success);
+                        }
+                        Assert.Equal(JointAttackState.Broken, attack.State);
                         break;
                 }
                 var target = targetMode == "exposed" ? point : targetMode == "null" ? null
