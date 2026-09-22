@@ -142,7 +142,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
 3. 수락하고 커밋한다.
 4. Unity가 새로 만든 .meta 파일은 따로 커밋한다: `git add -- '*.meta'` 후 `git commit -m "chore(client): Unity meta"`.
 
-- [ ] **U1 규칙 코어를 Unity 로컬 패키지로 연결**
+- [x] **U1 규칙 코어를 Unity 로컬 패키지로 연결** — `f1b4a47` (bin/obj 삭제는 Codex 정책에 막혀 수동 처리)
   ```powershell
   jevcode run --tag scaffold "규칙 코어를 Unity에서 쓸 수 있게 연결한다.
   1) 저장소 루트에 Directory.Build.props를 만들어 UseArtifactsOutput을 켠다(빌드 산출물을 artifacts/로). src/Core, tests 아래의 기존 bin/, obj/ 폴더는 삭제한다. .gitignore에 artifacts/를 추가한다. 이유: Unity가 패키지 폴더 안의 Core.dll까지 가져오면 같은 타입이 두 번 정의된다.
@@ -154,7 +154,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   리뷰 포인트: Unity를 열어 Package Manager의 In Project에 Behind the Curtain Core가 보이고 콘솔 에러가 0인지. `artifacts/`가 무시되는지.
 
-- [ ] **U2 쿼터뷰 장면과 이동**
+- [x] **U2 쿼터뷰 장면과 이동** — 오브젝트는 Play 때 코드가 생성한다(에디터에서는 씬이 비어 보이는 게 정상)
   > 사람이 먼저 할 일: Unity에서 빈 씬을 만들어 `Assets/Scenes/Prototype.unity`로 저장하고 커밋한다(씬 파일은 에이전트가 만들지 않는다).
   ```powershell
   jevcode run --tag feature "Assets/Scripts/Prototype에 PrototypeBootstrap을 만든다. RuntimeInitializeOnLoadMethod(AfterSceneLoad)로, 활성 씬 이름이 Prototype일 때만 동작한다. 다른 씬에는 아무것도 하지 않는다.
@@ -165,6 +165,18 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 Play에서 확인할 항목을 적는다."
   ```
   리뷰 포인트: Play에서 쿼터뷰로 보이는지, WASD가 화면 기준으로 움직이는지, 다른 씬에 영향이 없는지.
+
+- [ ] **U2b 카메라 회전과 확대/축소**
+  > 입력 배치: 좌클릭 근접, F 원거리, Space 광역(U4), 가운데 버튼 카메라 회전. 서로 겹치지 않게 나눈다.
+  ```powershell
+  jevcode run --tag feature "PrototypeBootstrap의 쿼터뷰 카메라에 조작을 추가한다. 입력은 Mouse.current로 읽는다.
+  1) 회전: 마우스 가운데 버튼을 누르고 있는 동안 Cursor.lockState를 Locked, Cursor.visible을 false로 하고, 마우스 이동량(delta)으로 카메라를 플레이어 중심으로 회전한다. 가로 이동은 요(yaw)를 제한 없이, 세로 이동은 피치(pitch)를 MinPitch~MaxPitch(기본 25~75도) 안에서 바꾼다. 버튼을 떼면 커서를 원래대로(None, visible) 돌린다. 창이 포커스를 잃으면(OnApplicationFocus false) 즉시 잠금을 해제한다.
+  2) 확대/축소: 휠 스크롤로 카메라 거리를 MinDistance~MaxDistance(기본 8~24m) 안에서 바꾼다. 스크롤 한 칸 = ZoomStep(기본 1.5m).
+  3) 회전과 거리 변화는 부드럽게(SmoothDamp 또는 Lerp) 따라간다. WASD 이동 방향은 지금처럼 현재 카메라 요 기준이다.
+  감도(RotateSensitivity 기본 0.2도/픽셀), 피치·거리 범위, ZoomStep은 PrototypeSettings에 둔다. 기존 기본값(피치 50, 요 45, 거리 14)이 시작 값이다.
+  기존 동작 변경 섹션에 카메라 코드의 변경점을 적는다. 규칙 코어 테스트는 계속 통과해야 한다."
+  ```
+  리뷰 포인트: 가운데 버튼을 누르면 커서가 사라지고 회전하는지, 떼면 돌아오는지. 피치 제한. 카메라를 돌린 뒤에도 WASD가 화면 기준인지. Alt+Tab 뒤 커서가 잠긴 채 남지 않는지.
 
 - [ ] **U3 합동 공격과 카운터 입력**
   ```powershell
