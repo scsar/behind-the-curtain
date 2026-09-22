@@ -239,7 +239,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   리뷰 포인트: 연결부가 인형의 앞/옆/뒤 면에 붙어 보이는지. 뒤쪽 면의 Anchor를 정면에서 겨누면 회색(가려짐) 미리보기가 뜨고, 돌아 들어가면 흰색이 되는지. 경고 주기가 늘어서 채널링을 끝낼 수 있는지. 이걸로 U3 단계를 닫고 U4로 간다.
 
-- [ ] **U4 연출가의 적응을 화면에서 읽기**
+- [x] **U4 연출가의 적응을 화면에서 읽기** — 거절·되돌림(`20260922-191244-5a47`). 원인은 명령 쪽: Core의 임시 배치(기본 진형은 Thread 하나)를 그대로 써서 Cut 한 번에 전부 쓰러짐, 공격에 화면 반응이 없음, 관찰 상황이 보이지 않음 → U4r
   ```powershell
   jevcode run --tag feature "프로토타입에 원정 루프를 붙인다. 교전 = 합동 공격 3사이클. 교전이 끝나면 Expedition에 BehaviorProfile을 합치고, 다음 교전의 대응(Tactic)과 JointAttackPlan을 정한다.
   플레이어 공격(CombatObserver에 기록): Space=광역 근접(반경 3m 안의 인형 모두), F=원거리 단일(가장 가까운 인형), 마우스 왼쪽 클릭=근접 단일. 공격 대상 역할은 인형마다 고정(앞 2개 Guard, 뒤 왼쪽 Attacker, 뒤 오른쪽 Healer, Healer는 초록색).
@@ -248,6 +248,26 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   PrototypeSettings에 교전당 사이클 수를 둔다. 규칙 코어 테스트는 계속 통과해야 한다."
   ```
   리뷰 포인트: 광역만 쓰다가 회복 역할 노리기로 바꿨을 때, **한 교전 뒤에** 진형이 바뀌는 게 눈에 보이는지(T11에서 본 적응 지연). 그게 재미있는지, 답답한지.
+
+- [ ] **U4r 연출가의 적응을 화면에서 읽기 (재시도)**
+  > U4를 다시 한다. 달라진 점: 대응마다 연결부 3개(종류별 하나, 위치만 다름), 공격 시 화면 반응, 관찰 막대. 배치표는 만들어 보고 고친다.
+  >
+  > | 대응 | 무엇에 대한 대응 | Thread | Anchor | Signal |
+  > |---|---|---|---|---|
+  > | StandardFormation | - | 앞 | 왼쪽 | 오른쪽 |
+  > | SpreadFormation | 광역 의존 | 왼쪽 | 오른쪽 | 뒤 |
+  > | GuardHealer | 힐러 집중 | 뒤 | 앞 | 왼쪽 |
+  > | ShieldAdvance | 원거리 | 앞 | 뒤 | 오른쪽 |
+  ```powershell
+  jevcode run --tag retry "프로토타입에 원정 루프를 붙인다. 교전 = 합동 공격 EncounterCycles(기본 3)사이클. 교전이 끝나면 Expedition에 BehaviorProfile을 합치고 다음 교전의 대응(Tactic)과 JointAttackPlan을 정한다. 판정은 모두 src/Core를 쓴다.
+  1) src/Core Tactic.TryCreatePlan의 연결부 배치를 대응마다 3개로 바꾼다. 각 대응은 Thread, Anchor, Signal을 하나씩 가지며 위치만 다르다. StandardFormation: Thread 앞, Anchor 왼쪽, Signal 오른쪽. SpreadFormation: Thread 왼쪽, Anchor 오른쪽, Signal 뒤. GuardHealer: Thread 뒤, Anchor 앞, Signal 왼쪽. ShieldAdvance: Thread 앞, Anchor 뒤, Signal 오른쪽. 이전 배치를 전제로 한 기존 테스트는 새 배치에 맞게 고치고, 어떤 테스트를 왜 바꿨는지 기존 동작 변경 섹션에 적는다. 테스트를 지우지 않는다.
+  2) src/Core CombatObserver에 교전을 끝내지 않고 지금까지의 관찰을 읽는 CurrentProfile(BehaviorProfile, 읽기 전용, 상태를 바꾸지 않음)을 추가하고 테스트한다. 화면 표시는 이것만 쓰고, Unity 쪽에서 비율을 따로 계산하지 않는다.
+  3) 플레이어 공격(CombatObserver에 기록): Space=광역 근접(반경 3m 안의 인형 모두), F=원거리 단일(AimDirection 쪽 가장 가까운 인형), 마우스 왼쪽 클릭=근접 단일(3m 안의 가장 가까운 인형). 인형 역할은 고정: 앞 2개 Guard, 뒤 왼쪽 Attacker, 뒤 오른쪽 Healer(초록색). 공격이 닿은 인형은 0.15초 하얗게 번쩍이고 그 위에 '광역', '원거리', '근접' 글자가 0.6초 떠오른다. 닿은 인형이 없으면 플레이어 옆에 '빗나감'을 띄우고 기록하지 않는다.
+  4) 대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. 진형은 교전마다 기본 배치에서 다시 계산한다. 진형은 파티 중심 기준의 인형 위치로 적용하고, U3d의 파티 회전과 바닥 경고, U3e의 몸통 면 연결부 배치는 그대로 유지한다. 연결부 i는 지금처럼 인형 i에 붙는다.
+  5) 표시: 화면 왼쪽 위에 현재 교전 번호, 대응 이름, 그리고 CurrentProfile의 세 경향(광역 의존, 힐러 집중, 원거리 지속)을 막대로, 기준선(TacticSettings 기본값)을 세로선으로 그린다(OnGUI). 교전 사이에 2초간 화면 가운데에 '연출가가 각본을 고친다: <대응 이름>'과 다음 교전에 쓰일 세 경향 값을 표시한다.
+  수치는 PrototypeSettings에 둔다. 규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 세 경향이 각각 어떤 공격으로 올라가는지 한 줄씩 설명하고, Play에서 확인할 항목을 적는다."
+  ```
+  리뷰 포인트: 첫 교전에서 빨강·파랑·노랑 연결부가 모두 보이는지. 공격을 누르면 인형이 번쩍이고 막대가 움직이는지. 힐러만 때렸을 때 힐러 집중 막대가 기준선을 넘고, **다음 교전에서** 진형과 연결부 위치가 바뀌는지. 방패 전진에서 뒤쪽 Anchor를 쏘려면 돌아 들어가야 하는지. 바뀐 테스트가 새 배치 때문인지(⚠ 표시 확인).
 
 ## 참고
 
