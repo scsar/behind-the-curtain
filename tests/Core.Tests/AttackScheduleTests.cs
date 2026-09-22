@@ -114,7 +114,8 @@ public sealed class AttackScheduleTests
                 Assert.True(tactic.TryCreatePlan(out var plan));
                 foreach (var limit in new[] { 1, 2, 3 })
                 {
-                    var rules = new FairnessRules(maxOpenCounterWindows: limit);
+                    var rules = new FairnessRules(maxOpenCounterWindows: limit,
+                        maxRequiredPointsPerAttack: Tactic.RequiredConnectionPointCount);
                     var entries = Enumerable.Range(0, 6).Select(_ => new ScheduledAttackPlan(plan!, random.Next(-30, 31))).ToArray();
                     // Independent tick-by-tick oracle over the generated range.
                     var peak = Enumerable.Range(-30, 200).Max(t => entries.Count(e =>

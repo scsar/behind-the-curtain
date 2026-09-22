@@ -5,6 +5,26 @@ namespace BehindTheCurtain.Core.Tests;
 public sealed class CombatObserverTests
 {
     [Fact]
+    public void CurrentProfile_IsAnImmutableNonDestructiveSnapshot()
+    {
+        var observer = Create();
+        AssertProfile(observer.CurrentProfile, 0, 0, 0);
+        for (var i = 0; i < 2; i++)
+            Assert.True(observer.Observe(new AttackEvent(2, TargetRole.Healer, AttackRange.Ranged, i)));
+        var snapshot = observer.CurrentProfile;
+        AssertProfile(snapshot, 1, 1, 0);
+        AssertProfile(observer.CurrentProfile, 1, 1, 0);
+        Assert.True(observer.Observe(new AttackEvent(0, TargetRole.Guard, AttackRange.Ranged, 2)));
+        AssertProfile(observer.CurrentProfile, 2d / 3, 2d / 3, 1);
+        AssertProfile(snapshot, 1, 1, 0);
+        Assert.False(observer.Observe(new AttackEvent(-1, TargetRole.Guard, AttackRange.Melee, 3)));
+        AssertProfile(observer.CurrentProfile, 2d / 3, 2d / 3, 1);
+        AssertProfile(observer.EndEncounter(), 2d / 3, 2d / 3, 1);
+        Assert.False(observer.Observe(new AttackEvent(0, TargetRole.Guard, AttackRange.Melee, 3)));
+        AssertProfile(observer.CurrentProfile, 2d / 3, 2d / 3, 1);
+    }
+
+    [Fact]
     public void EmptyEncounter_ReturnsZeros()
     {
         AssertProfile(Create().EndEncounter(), 0, 0, 0);

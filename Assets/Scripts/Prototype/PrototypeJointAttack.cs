@@ -47,21 +47,14 @@ namespace BehindTheCurtain.Prototype
             settings = configuration;
             player = playerTransform;
             controls = GetComponent<PrototypeBootstrap>();
-            // A provisional three-point layout exercises all input methods in one attack.
-            var points = new[] {
-                new ConnectionPoint(ConnectionPointKind.Thread, ConnectionPointPosition.Front),
-                new ConnectionPoint(ConnectionPointKind.Anchor, ConnectionPointPosition.Left),
-                new ConnectionPoint(ConnectionPointKind.Signal, ConnectionPointPosition.Right)
-            };
-            if (!JointAttackPlan.TryCreate(default, settings.TelegraphTicks, settings.CounterWindowTicks,
-                points, new FairnessRules(maxRequiredPointsPerAttack: settings.MaxRequiredPoints),
-                out plan, out var reason))
+            if (!InitializeExpedition())
             {
-                lastReason = $"Invalid prototype plan: {reason}";
+                lastReason = "Invalid expedition settings or plan";
                 enabled = false;
                 return;
             }
-            if (puppetTransforms.Count < points.Length || settings.AttackWaitTicks < 1 ||
+            var points = plan.ConnectionPoints;
+            if (puppetTransforms.Count != 4 || settings.AttackWaitTicks < 1 ||
                 settings.ResultTicks < settings.CollapseTicks || settings.CollapseTicks < 1 ||
                 settings.ShakeTicks < 1 || settings.FlashTicks < 1 || settings.ThreadBlinkTicks < 1 ||
                 settings.ShootAimTicks < 1 || settings.ShootCooldownTicks < 0 ||
@@ -82,7 +75,7 @@ namespace BehindTheCurtain.Prototype
             restPositions = new Vector3[puppets.Length];
             restRotations = new Quaternion[puppets.Length];
             threads = new LineRenderer[puppets.Length];
-            markers = new Transform[points.Length];
+            markers = new Transform[points.Count];
             for (var i = 0; i < puppets.Length; i++)
             {
                 puppets[i] = puppetTransforms[i];
@@ -129,6 +122,8 @@ namespace BehindTheCurtain.Prototype
             disruptCircle = CreateCounterLine("Disrupt Range", settings.DisruptColor,
                 settings.DisruptCircleSegments, true);
             InitializePressure();
+            InitializePlayerAttacks();
+            ApplyFormation();
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
         }
 
@@ -233,8 +228,17 @@ namespace BehindTheCurtain.Prototype
                 resultStartTick = -1;
                 severedViews.Clear();
                 nextAttackTick = tick + settings.AttackWaitTicks;
+                completedCycles++;
+                if (completedCycles >= settings.EncounterCycles && !FinishEncounter(tick)) return;
             }
-            if (attack == null && tick >= nextAttackTick && slams.Count == 0)
+            if (intermission && tick >= intermissionUntil)
+            {
+                intermission = false;
+                encounterNumber++;
+                completedCycles = 0;
+                ApplyFormation();
+            }
+            if (!intermission && attack == null && tick >= nextAttackTick && slams.Count == 0)
             {
                 if (!plan.TryCreateAttack(tick, out attack))
                 {
@@ -569,6 +573,7 @@ namespace BehindTheCurtain.Prototype
             if (plan == null || puppets == null) return;
             Physics.SyncTransforms();
             UpdateCounter();
+            UpdatePlayerAttacks();
             if (aimLine == null) return;
             var previewIndex = SelectShootTarget();
             shootPreview.gameObject.SetActive(previewIndex >= 0);
@@ -630,17 +635,19 @@ namespace BehindTheCurtain.Prototype
                 return;
             DrawResultOverlay();
             DrawCounterProgress();
+            DrawExpedition();
             var remaining = attack != null && attack.State == JointAttackState.CounterWindowOpen
                 ? System.Math.Max(0, attack.CounterWindow.End - clock.Tick + 1) : 0;
             var required = plan != null ? plan.ConnectionPoints.Count : 0;
             var broken = attack != null ? (int)System.Math.Round((1d - attack.Severity) * required) : 0;
-            GUI.Box(new Rect(8f, 8f, 460f, 155f), "");
-            GUI.Label(new Rect(12f, 12f, 450f, 145f),
+            GUI.Box(new Rect(8f, 178f, 540f, 220f), "");
+            GUI.Label(new Rect(12f, 182f, 530f, 210f),
                 $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
                 + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
                 + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
                 + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s | 이번 사이클 피격: {cycleHitCount}\n"
-                + (clock.Tick < rangeMessageUntil ? rangeMessage : ""));
+                + (clock.Tick < rangeMessageUntil ? rangeMessage : "")
+                + "\n" + ConnectionSummary());
         }
 
         private void DrawResultOverlay()

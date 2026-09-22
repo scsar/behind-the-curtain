@@ -7,6 +7,23 @@ namespace BehindTheCurtain.Prototype
     public sealed class PrototypeSettings
     {
         public const int TicksPerSecond = 30;
+        // Requested expedition defaults; cone/formation/text tuning is provisional.
+        public int EncounterCycles = 3;
+        public int IntermissionTicks = 2 * TicksPerSecond;
+        public float MeleeAttackRadius = 3f;
+        public float RangedAttackConeDegrees = 20f;
+        public const int FeedbackTicksPerSecond = 60; // Presentation only; rules remain 30Hz.
+        public int PuppetHitFlashTicks = 9; // 0.15s at 60Hz.
+        public int AttackLabelTicks = 36; // 0.6s at 60Hz.
+        public float AttackLabelRise = 0.8f;
+        public float AttackLabelHeight = 1f;
+        public float SpreadSpacingMultiplier = 2f;
+        public float ShieldAdvanceDistance = 2f;
+        public float GuardHealerOffset = 1f;
+        public Color HealerColor = Color.green;
+        public double ExpeditionDecay = BehindTheCurtain.Core.ExpeditionSettings.DefaultDecay;
+        public int MinimumAreaHitCount = BehindTheCurtain.Core.ObserverSettings.DefaultMinimumAreaHitCount;
+        public int SustainedRangedStreak = BehindTheCurtain.Core.ObserverSettings.DefaultSustainedRangedStreak;
         // Requested defaults; provisional pressure tuning values.
         public int Seed = 1;
         public float PartyOrbitSpeed = 15f; // Degrees per second.

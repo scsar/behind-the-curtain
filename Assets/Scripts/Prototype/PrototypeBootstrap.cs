@@ -269,7 +269,7 @@ namespace BehindTheCurtain.Prototype
 
         private void OnGUI()
         {
-            GUI.Label(new Rect(12f, 142f, 300f, 24f), $"Mode: {mode} (Tab)");
+            GUI.Label(new Rect(12f, 400f, 300f, 24f), $"Mode: {mode} (Tab)");
         }
 
         private void OnDestroy()

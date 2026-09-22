@@ -106,7 +106,7 @@ public static class Simulation
                 scheduled[i] = new ScheduledAttackPlan(plan!, tick);
                 tick += plan!.TelegraphTicks + plan.CounterWindowTicks;
             }
-            if (!AttackSchedule.TryCreate(scheduled, new FairnessRules(), out var schedule, out _))
+            if (!AttackSchedule.TryCreate(scheduled, new FairnessRules(maxRequiredPointsPerAttack: Tactic.RequiredConnectionPointCount), out var schedule, out _))
                 return Fail(error);
 
             var successes = 0;

@@ -14,15 +14,21 @@ public sealed class JointAttackPlanTests
             spreadFormationPreparationTickCost: 21, guardHealerPreparationTickCost: 22,
             shieldAdvancePreparationTickCost: 23, standardFormationPreparationTickCost: 24), out var selector));
         var profiles = new[] { Profile(4, 0, 0), Profile(0, 4, 0), Profile(0, 0, 4), default };
-        var counts = new[] { 2, 2, 1, 1 }; // Provisional layouts, not fairness requirements.
+        var counts = new[] { 3, 3, 3, 3 };
         var positions = new[] { ConnectionPointPosition.Left, ConnectionPointPosition.Rear,
-            ConnectionPointPosition.Right, ConnectionPointPosition.Front };
+            ConnectionPointPosition.Front, ConnectionPointPosition.Front };
         for (var i = 0; i < profiles.Length; i++)
         {
             Assert.True(selector!.Select(profiles[i]).TryCreatePlan(out var plan));
             Assert.Equal(JointAttackPlan.DefaultTelegraphTicks + 21 + i, plan!.TelegraphTicks);
             Assert.Equal(counts[i], plan.ConnectionPoints.Count);
             Assert.Equal(positions[i], plan.ConnectionPoints[0].Position);
+            Assert.Equal(new[] { ConnectionPointKind.Thread, ConnectionPointKind.Anchor, ConnectionPointKind.Signal },
+                plan.ConnectionPoints.Select(p => p.Kind!.Value));
+            Assert.Equal(new[] { ConnectionPointPosition.Right, ConnectionPointPosition.Front,
+                ConnectionPointPosition.Rear, ConnectionPointPosition.Left }[i], plan.ConnectionPoints[1].Position);
+            Assert.Equal(new[] { ConnectionPointPosition.Rear, ConnectionPointPosition.Left,
+                ConnectionPointPosition.Right, ConnectionPointPosition.Right }[i], plan.ConnectionPoints[2].Position);
             Assert.Equal(JointAttackPlan.DefaultCounterWindowTicks, plan.CounterWindowTicks);
         }
     }

@@ -13,6 +13,9 @@ namespace BehindTheCurtain.Core
         private bool ended;
         private BehaviorProfile profile;
 
+        /// <summary>Immutable snapshot; reading never ends or changes observation.</summary>
+        public BehaviorProfile CurrentProfile => new BehaviorProfile(total, area, healer, sustainedRanged);
+
         private CombatObserver(ObserverSettings settings) => this.settings = settings;
 
         /// <summary>Rejects null settings and nonpositive thresholds without throwing.</summary>
