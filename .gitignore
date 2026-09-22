@@ -10,6 +10,7 @@
 [Rr]ecordings/
 
 # .NET build and test output (core, server, tools)
+artifacts/
 [Bb]in/
 [Tt]est[Rr]esults/
 *.trx

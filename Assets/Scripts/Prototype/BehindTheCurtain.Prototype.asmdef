@@ -1,0 +1,8 @@
+{
+  "name": "BehindTheCurtain.Prototype",
+  "rootNamespace": "BehindTheCurtain.Prototype",
+  "references": [
+    "BehindTheCurtain.Core",
+    "Unity.InputSystem"
+  ]
+}
