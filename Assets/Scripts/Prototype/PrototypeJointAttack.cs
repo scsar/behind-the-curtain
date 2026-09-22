@@ -8,7 +8,7 @@ namespace BehindTheCurtain.Prototype
 {
     /// <summary>Input and presentation adapter. Attack transitions and counter results belong to Core.</summary>
     [DefaultExecutionOrder(100)] // Consume Bootstrap's aim after its LateUpdate.
-    public sealed class PrototypeJointAttack : MonoBehaviour
+    public sealed partial class PrototypeJointAttack : MonoBehaviour
     {
         private readonly PrototypeClock clock = new PrototypeClock();
         private readonly List<Material> materials = new List<Material>();
@@ -68,7 +68,7 @@ namespace BehindTheCurtain.Prototype
                 settings.DisruptChannelTicks < 1 || settings.CancelMessageTicks < 1 ||
                 settings.DisruptCircleSegments < 3 || settings.ShootMessageTicks < 1 ||
                 !(settings.ShootConeDegrees >= 0f && settings.ShootConeDegrees <= 180f) ||
-                !(settings.ShootPreviewScale > 1f))
+                !(settings.ShootPreviewScale > 1f) || !ValidPressureSettings())
             {
                 lastReason = "Invalid prototype presentation settings";
                 enabled = false;
@@ -125,6 +125,7 @@ namespace BehindTheCurtain.Prototype
             preview.SetActive(false);
             disruptCircle = CreateCounterLine("Disrupt Range", settings.DisruptColor,
                 settings.DisruptCircleSegments, true);
+            InitializePressure();
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
         }
 
@@ -216,6 +217,7 @@ namespace BehindTheCurtain.Prototype
             }
             ObserveResult();
             UpdatePresentation();
+            UpdateHitPresentation();
         }
 
         private void OnTick(long tick)
@@ -229,7 +231,7 @@ namespace BehindTheCurtain.Prototype
                 severedViews.Clear();
                 nextAttackTick = tick + settings.AttackWaitTicks;
             }
-            if (attack == null && tick >= nextAttackTick)
+            if (attack == null && tick >= nextAttackTick && slams.Count == 0)
             {
                 if (!plan.TryCreateAttack(tick, out attack))
                 {
@@ -237,9 +239,11 @@ namespace BehindTheCurtain.Prototype
                     enabled = false;
                     return;
                 }
+                StartPressureCycle();
             }
             if (attack != null)
                 attack.Advance(tick);
+            AdvancePressure(tick);
             AdvanceCounterAction();
             ObserveResult();
         }
@@ -609,7 +613,7 @@ namespace BehindTheCurtain.Prototype
                 $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
                 + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
                 + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
-                + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s\n"
+                + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s | 이번 사이클 피격: {cycleHitCount}\n"
                 + (clock.Tick < rangeMessageUntil ? rangeMessage : ""));
         }
 
@@ -642,6 +646,7 @@ namespace BehindTheCurtain.Prototype
 
         private void OnDestroy()
         {
+            if (slamMesh != null) Destroy(slamMesh);
             foreach (var material in materials)
                 Destroy(material);
         }

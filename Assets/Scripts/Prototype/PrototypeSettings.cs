@@ -7,6 +7,21 @@ namespace BehindTheCurtain.Prototype
     public sealed class PrototypeSettings
     {
         public const int TicksPerSecond = 30;
+        // Requested defaults; provisional pressure tuning values.
+        public int Seed = 1;
+        public float PartyOrbitSpeed = 15f; // Degrees per second.
+        public int SlamIntervalTicks = 45;
+        public int SlamWarningTicks = 24;
+        public float SlamRadius = 2f;
+        // Provisional pressure presentation values.
+        public int SlamFlashTicks = 6;
+        public int HitFlashTicks = 12;
+        public int HitBlinkTicks = 3;
+        public int SlamCircleSegments = 64;
+        public float SlamHeight = 0.04f;
+        public Color SlamWarningColor = new Color(1f, 0f, 0f, 0.3f);
+        public Color SlamFlashColor = new Color(1f, 0.7f, 0.7f, 0.8f);
+        public Color HitColor = Color.red;
         public int AttackWaitTicks = 90;
         public int RangeMessageTicks = 30;
         public int CollapseTicks = 15;
