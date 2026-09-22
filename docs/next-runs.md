@@ -137,8 +137,8 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
 
 **Unity run의 흐름 (기존 흐름과 다른 점)**
 
-1. run 전에 **Unity 에디터를 닫는다.** 열려 있으면 파일 변경을 감지해 .meta 등을 만들고, 그 변경이 run 기록에 섞인다.
-2. run이 끝나면 리뷰 화면에서 코드를 본 뒤, **Unity를 열어 콘솔 에러가 0인지, Play로 동작하는지** 확인한다. 검증 명령(규칙 코어 테스트)은 Unity 컴파일을 확인하지 못한다.
+1. run 전에 **Unity 에디터는 열어 두되 창을 건드리지 않는다**(포커스를 주면 파일 변경을 감지해 .meta 등을 만들고, 그 변경이 run 기록에 섞인다). **MCP for Unity 서버는 꺼 둔다.** 샌드박스가 로컬 서버 접속을 막지 않기 때문이다. 켜져 있으면 run 시작 때 경고가 뜬다.
+2. run이 끝나면 jevcode가 자동으로 Unity 재컴파일과 콘솔 에러를 확인한다(`jevcode init --unity` 설정, 검증 항목 `unity: recompile + console errors (host)`). 에디터가 꺼져 있으면 `unknown`으로 기록된다. 리뷰 화면에서 코드와 이 결과를 본 뒤, **Play로 동작을 직접 확인**한다.
 3. 수락하고 커밋한다.
 4. Unity가 새로 만든 .meta 파일은 따로 커밋한다: `git add -- '*.meta'` 후 `git commit -m "chore(client): Unity meta"`.
 
