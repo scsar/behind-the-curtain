@@ -40,6 +40,13 @@ namespace BehindTheCurtain.Prototype
             pressureRandom = new System.Random(settings.Seed);
             foreach (var position in restPositions) partyCenter += position;
             partyCenter /= restPositions.Length;
+            var forward = Vector3.ProjectOnPlane(player.position - partyCenter, Vector3.up);
+            var facing = forward.sqrMagnitude > 0f ? Quaternion.LookRotation(forward) : Quaternion.identity;
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                restRotations[i] = facing;
+                puppets[i].rotation = facing;
+            }
             playerMaterial = player.GetComponent<Renderer>().sharedMaterial;
             slamWarningMaterial = CreateUnlitMaterial(settings.SlamWarningColor);
             ConfigureTransparentPreview(slamWarningMaterial);
@@ -118,6 +125,7 @@ namespace BehindTheCurtain.Prototype
             for (var i = 0; i < puppets.Length; i++)
             {
                 restPositions[i] = partyCenter + rotation * (restPositions[i] - partyCenter);
+                restRotations[i] = rotation * restRotations[i];
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];
             }

@@ -68,6 +68,9 @@ namespace BehindTheCurtain.Prototype
                 settings.DisruptChannelTicks < 1 || settings.CancelMessageTicks < 1 ||
                 settings.DisruptCircleSegments < 3 || settings.ShootMessageTicks < 1 ||
                 !(settings.ShootConeDegrees >= 0f && settings.ShootConeDegrees <= 180f) ||
+                !(settings.ShootOriginHeight >= 0f) || float.IsInfinity(settings.ShootOriginHeight) ||
+                !(settings.ShootOcclusionMargin >= 0f) || float.IsInfinity(settings.ShootOcclusionMargin) ||
+                !(settings.ConnectionSurfaceOffset >= 0f) || float.IsInfinity(settings.ConnectionSurfaceOffset) ||
                 !(settings.ShootPreviewScale > 1f) || !ValidPressureSettings())
             {
                 lastReason = "Invalid prototype presentation settings";
@@ -308,7 +311,25 @@ namespace BehindTheCurtain.Prototype
         }
 
         private Vector3 ConnectionPosition(int index)
-            => puppets[index].position + Vector3.up * settings.ConnectionHeight;
+        {
+            var direction = Vector3.forward;
+            switch (plan.ConnectionPoints[index].Position)
+            {
+                case ConnectionPointPosition.Left: direction = Vector3.left; break;
+                case ConnectionPointPosition.Right: direction = Vector3.right; break;
+                case ConnectionPointPosition.Rear: direction = Vector3.back; break;
+            }
+            // Primitive cubes are centred at half their height; local faces are at +/- 0.5.
+            var puppet = puppets[index];
+            return puppet.TransformPoint(direction * 0.5f)
+                + puppet.rotation * direction * settings.ConnectionSurfaceOffset;
+        }
+
+        private Vector3 ShootOrigin => player.position
+            + Vector3.up * (settings.ShootOriginHeight - settings.PlayerHeight / 2f);
+
+        private float ShootRayLength(float distance)
+            => Mathf.Max(0f, distance - settings.ShootOcclusionMargin);
 
         private bool IsShootCandidate(int index)
             => WindowOpen && index >= 0 && index < attack.ConnectionPoints.Count &&
@@ -352,16 +373,17 @@ namespace BehindTheCurtain.Prototype
 
         private bool IsShootOccluded(int index)
         {
-            var origin = player.position + Vector3.up * settings.ConnectionHeight;
+            var origin = ShootOrigin;
             var offset = ConnectionPosition(index) - origin;
             var distance = offset.magnitude;
-            if (distance <= 0f) return false;
+            var rayLength = ShootRayLength(distance);
+            if (rayLength <= 0f) return false;
             var ray = new Ray(origin, offset / distance);
-            if (!Physics.Raycast(ray, out var first, distance, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+            if (!Physics.Raycast(ray, out var first, rayLength, Physics.AllLayers, QueryTriggerInteraction.Ignore))
                 return false;
             if (IsPuppetBody(first.collider, index)) return true;
             // Ignore self, connection markers and non-body geometry without hiding bodies behind them.
-            foreach (var hit in Physics.RaycastAll(ray, distance, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+            foreach (var hit in Physics.RaycastAll(ray, rayLength, Physics.AllLayers, QueryTriggerInteraction.Ignore))
                 if (IsPuppetBody(hit.collider, index)) return true;
             return false;
         }
@@ -525,8 +547,10 @@ namespace BehindTheCurtain.Prototype
                 line.enabled = (telegraphing || windowOpen) && !severed;
                 if (line.enabled)
                 {
-                    var bottom = puppets[i].position + Vector3.up * (settings.PuppetSize / 2f);
-                    var top = restPositions[i] + Vector3.up * settings.ThreadHeight;
+                    var bottom = i < markers.Length ? ConnectionPosition(i)
+                        : puppets[i].position + Vector3.up * (settings.PuppetSize / 2f);
+                    var top = i < markers.Length ? bottom + Vector3.up * settings.ThreadHeight
+                        : restPositions[i] + Vector3.up * settings.ThreadHeight;
                     line.SetPosition(0, bottom);
                     line.SetPosition(1, (bottom + top) / 2f + Vector3.right * (settings.ThreadSag * (1f - tension)));
                     line.SetPosition(2, top);
@@ -560,8 +584,10 @@ namespace BehindTheCurtain.Prototype
             aimLine.enabled = pendingMethod == InterferenceMethod.Shoot;
             if (aimLine.enabled)
             {
-                aimLine.SetPosition(0, player.position);
-                aimLine.SetPosition(1, ConnectionPosition(aimTargetIndex));
+                var origin = ShootOrigin;
+                var offset = ConnectionPosition(aimTargetIndex) - origin;
+                aimLine.SetPosition(0, origin);
+                aimLine.SetPosition(1, origin + offset.normalized * ShootRayLength(offset.magnitude));
             }
             disruptCircle.enabled = pendingMethod == InterferenceMethod.Disrupt;
             if (disruptCircle.enabled)

@@ -10,7 +10,7 @@ namespace BehindTheCurtain.Prototype
         // Requested defaults; provisional pressure tuning values.
         public int Seed = 1;
         public float PartyOrbitSpeed = 15f; // Degrees per second.
-        public int SlamIntervalTicks = 45;
+        public int SlamIntervalTicks = 120;
         public int SlamWarningTicks = 24;
         public float SlamRadius = 2f;
         // Provisional pressure presentation values.
@@ -30,6 +30,8 @@ namespace BehindTheCurtain.Prototype
         public int ShootCooldownTicks = 60;
         public float ShootConeDegrees = 20f; // Maximum horizontal deviation from AimDirection.
         public int ShootMessageTicks = TicksPerSecond;
+        public float ShootOriginHeight = 1.0f; // Metres above the player's feet.
+        public float ShootOcclusionMargin = 0.1f; // Stop before the connection centre.
         // Provisional preview tuning values.
         public float ShootPreviewScale = 1.35f;
         public Color ShootPreviewColor = new Color(1f, 1f, 1f, 0.3f);
@@ -59,7 +61,7 @@ namespace BehindTheCurtain.Prototype
         public int ShakeTicks = 12;
         public int FlashTicks = 12;
         public int ThreadBlinkTicks = 6;
-        public float ConnectionHeight = 1.2f;
+        public float ConnectionSurfaceOffset = 0.05f; // Metres outside the body face.
         public float ConnectionDiameter = 0.22f;
         public float ThreadHeight = 4f;
         public float ThreadWidth = 0.035f;
