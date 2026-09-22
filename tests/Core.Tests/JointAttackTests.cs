@@ -30,7 +30,8 @@ public sealed class JointAttackTests
     public void TryCreate_RejectsInvalidSchedule(long start, long open, long close, long execution)
     {
         Assert.True(TickWindow.TryCreate(open, close, out var window));
-        Assert.False(JointAttack.TryCreate(start, window, execution, out var attack));
+        Assert.False(JointAttack.TryCreate(start, window, execution,
+            new[] { new ConnectionPoint(InterferenceMethod.Cut) }, out var attack));
         Assert.Null(attack);
     }
 
@@ -169,7 +170,8 @@ public sealed class JointAttackTests
     private static JointAttack Create(long start = 0, long open = 10, long close = 20, long execution = 30)
     {
         Assert.True(TickWindow.TryCreate(open, close, out var window));
-        Assert.True(JointAttack.TryCreate(start, window, execution, out var attack));
+        Assert.True(JointAttack.TryCreate(start, window, execution,
+            new[] { new ConnectionPoint(InterferenceMethod.Cut) }, out var attack));
         Assert.NotNull(attack);
         return attack;
     }
