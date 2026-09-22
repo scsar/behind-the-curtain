@@ -10,6 +10,18 @@ namespace BehindTheCurtain.Prototype
         public int AttackWaitTicks = 90;
         public int RangeMessageTicks = 30;
         public int CollapseTicks = 15;
+        // Requested defaults; provisional tuning values for the prototype.
+        public int ShootAimTicks = 18;
+        public int ShootCooldownTicks = 60;
+        public int DisruptChannelTicks = 45;
+        public int CancelMessageTicks = TicksPerSecond;
+        // Provisional presentation values.
+        public float CounterLineWidth = 0.025f;
+        public int DisruptCircleSegments = 64;
+        public float DisruptCircleHeight = 0.03f;
+        public float ProgressHeight = 0.3f;
+        public float ProgressWidth = 80f;
+        public float ProgressBarHeight = 8f;
         public float CutRange = 2.5f;
         public float DisruptRange = 6f;
         public Color CutColor = Color.red;

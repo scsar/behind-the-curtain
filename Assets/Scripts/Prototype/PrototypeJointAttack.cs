@@ -27,6 +27,16 @@ namespace BehindTheCurtain.Prototype
         private string lastReason = "None";
         private string rangeMessage;
 
+        private InterferenceMethod? pendingMethod;
+        private int aimTargetIndex = -1;
+        private long actionStartTick;
+        private long shootReadyTick;
+        private long cancelMessageUntil;
+        private string cancelMessage;
+        private Vector3 actionPosition;
+        private LineRenderer aimLine;
+        private LineRenderer disruptCircle;
+
         public void Initialize(PrototypeSettings configuration, Transform playerTransform,
             IReadOnlyList<Transform> puppetTransforms)
         {
@@ -48,7 +58,10 @@ namespace BehindTheCurtain.Prototype
             }
             if (puppetTransforms.Count < points.Length || settings.AttackWaitTicks < 1 ||
                 settings.ResultTicks < settings.CollapseTicks || settings.CollapseTicks < 1 ||
-                settings.ShakeTicks < 1 || settings.FlashTicks < 1 || settings.ThreadBlinkTicks < 1)
+                settings.ShakeTicks < 1 || settings.FlashTicks < 1 || settings.ThreadBlinkTicks < 1 ||
+                settings.ShootAimTicks < 1 || settings.ShootCooldownTicks < 0 ||
+                settings.DisruptChannelTicks < 1 || settings.CancelMessageTicks < 1 ||
+                settings.DisruptCircleSegments < 3)
             {
                 lastReason = "Invalid prototype presentation settings";
                 enabled = false;
@@ -87,7 +100,44 @@ namespace BehindTheCurtain.Prototype
                 sphere.SetActive(false);
                 markers[i] = sphere.transform;
             }
+            aimLine = CreateCounterLine("Shoot Aim", settings.ShootColor, 2, false);
+            disruptCircle = CreateCounterLine("Disrupt Range", settings.DisruptColor,
+                settings.DisruptCircleSegments, true);
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
+        }
+
+        private LineRenderer CreateCounterLine(string name, Color color, int count, bool loop)
+        {
+            var obj = new GameObject(name);
+            obj.transform.SetParent(transform, false);
+            var line = obj.AddComponent<LineRenderer>();
+            line.sharedMaterial = CreateUnlitMaterial(color);
+            line.useWorldSpace = true;
+            line.positionCount = count;
+            line.loop = loop;
+            line.widthMultiplier = settings.CounterLineWidth;
+            line.enabled = false;
+            return line;
+        }
+
+        private bool WindowOpen => attack != null && attack.State == JointAttackState.CounterWindowOpen
+            && attack.CounterWindow.Contains(clock.Tick);
+
+        private static bool HasMovementInput()
+        {
+            var keyboard = Keyboard.current;
+            return Application.isFocused && keyboard != null &&
+                (keyboard.wKey.isPressed || keyboard.aKey.isPressed ||
+                 keyboard.sKey.isPressed || keyboard.dKey.isPressed);
+        }
+
+        private void CancelAction(string reason)
+        {
+            pendingMethod = null;
+            aimTargetIndex = -1;
+            if (reason == null) return;
+            cancelMessage = $"Cancelled: {reason}";
+            cancelMessageUntil = clock.Tick + settings.CancelMessageTicks;
         }
 
         private Color MethodColor(InterferenceMethod method)
@@ -124,10 +174,18 @@ namespace BehindTheCurtain.Prototype
         {
             if (plan == null || puppets == null)
                 return;
+            var keyboard = Keyboard.current;
+            if (pendingMethod.HasValue && Application.isFocused && keyboard != null &&
+                ((keyboard.digit1Key.wasPressedThisFrame && pendingMethod != InterferenceMethod.Cut) ||
+                 (keyboard.digit2Key.wasPressedThisFrame && pendingMethod != InterferenceMethod.Shoot) ||
+                 (keyboard.digit3Key.wasPressedThisFrame && pendingMethod != InterferenceMethod.Disrupt)))
+                CancelAction(null);
+            // Check before advancing: movement on the completion frame must cancel too.
+            if (pendingMethod.HasValue && (HasMovementInput() || player.position != actionPosition))
+                CancelAction("Movement");
             clock.Advance(Time.deltaTime, OnTick);
             if (!enabled)
                 return;
-            var keyboard = Keyboard.current;
             if (Application.isFocused && keyboard != null)
             {
                 if (keyboard.digit1Key.wasPressedThisFrame) TryCounter(InterferenceMethod.Cut);
@@ -160,7 +218,40 @@ namespace BehindTheCurtain.Prototype
             }
             if (attack != null)
                 attack.Advance(tick);
+            AdvanceCounterAction();
             ObserveResult();
+        }
+
+        private void AdvanceCounterAction()
+        {
+            if (!pendingMethod.HasValue) return;
+            if (!WindowOpen)
+            {
+                CancelAction("Window closed");
+                return;
+            }
+            var method = pendingMethod.Value;
+            var duration = method == InterferenceMethod.Shoot ? settings.ShootAimTicks : settings.DisruptChannelTicks;
+            if (clock.Tick - actionStartTick < duration) return;
+            var targetIndex = aimTargetIndex;
+            CancelAction(null);
+            if (method == InterferenceMethod.Shoot)
+            {
+                ResolveCounter(method, attack.ConnectionPoints[targetIndex]);
+                shootReadyTick = clock.Tick + settings.ShootCooldownTicks;
+                return;
+            }
+            var found = false;
+            for (var i = 0; i < attack.ConnectionPoints.Count; i++)
+            {
+                var point = attack.ConnectionPoints[i];
+                if (severedViews.Contains(point) || (point.AllowedMethods & method) == 0 ||
+                    Vector3.Distance(player.position, ConnectionPosition(i)) > settings.DisruptRange)
+                    continue;
+                found = true;
+                ResolveCounter(method, point);
+            }
+            if (!found) CancelAction("No target");
         }
 
         private void ObserveResult()
@@ -182,7 +273,20 @@ namespace BehindTheCurtain.Prototype
 
         private void TryCounter(InterferenceMethod method)
         {
+            if (pendingMethod == method) return;
+            CancelAction(null);
+            if (method == InterferenceMethod.Shoot && clock.Tick < shootReadyTick)
+            {
+                lastReason = "Shoot: cooldown";
+                return;
+            }
+            if (method != InterferenceMethod.Cut && !WindowOpen)
+            {
+                CancelAction("Window closed");
+                return;
+            }
             ConnectionPoint target = null;
+            var targetIndex = -1;
             var closestDistance = float.PositiveInfinity;
             if (attack != null && attack.State == JointAttackState.CounterWindowOpen)
             {
@@ -195,18 +299,43 @@ namespace BehindTheCurtain.Prototype
                     if (distance < closestDistance)
                     {
                         target = point;
+                        targetIndex = i;
                         closestDistance = distance;
                     }
                 }
             }
             var range = method == InterferenceMethod.Cut ? settings.CutRange
                 : method == InterferenceMethod.Disrupt ? settings.DisruptRange : float.PositiveInfinity;
+            if (method != InterferenceMethod.Cut)
+            {
+                if (target == null || closestDistance > range)
+                {
+                    CancelAction("No target");
+                    return;
+                }
+                if (HasMovementInput())
+                {
+                    CancelAction("Movement");
+                    return;
+                }
+                pendingMethod = method;
+                aimTargetIndex = targetIndex;
+                actionStartTick = clock.Tick;
+                actionPosition = player.position;
+                rangeMessage = null;
+                return;
+            }
             if (target != null && closestDistance > range)
             {
                 rangeMessage = $"{method}: out of range ({closestDistance:F1}m / {range:F1}m)";
                 rangeMessageUntil = clock.Tick + settings.RangeMessageTicks;
                 return;
             }
+            ResolveCounter(method, target);
+        }
+
+        private void ResolveCounter(InterferenceMethod method, ConnectionPoint target)
+        {
             var result = CounterResolver.Resolve(attack, clock.Tick, method, target);
             lastReason = $"{method}: {(result.Success ? "Success" : result.FailureReason.ToString())}";
             rangeMessage = null;
@@ -268,20 +397,69 @@ namespace BehindTheCurtain.Prototype
             }
         }
 
+        private void LateUpdate()
+        {
+            if (aimLine == null) return;
+            // Also catch movement performed by another component later in Update.
+            if (pendingMethod.HasValue && player.position != actionPosition)
+                CancelAction("Movement");
+            aimLine.enabled = pendingMethod == InterferenceMethod.Shoot;
+            if (aimLine.enabled)
+            {
+                aimLine.SetPosition(0, player.position);
+                aimLine.SetPosition(1, ConnectionPosition(aimTargetIndex));
+            }
+            disruptCircle.enabled = pendingMethod == InterferenceMethod.Disrupt;
+            if (disruptCircle.enabled)
+            {
+                for (var i = 0; i < settings.DisruptCircleSegments; i++)
+                {
+                    var angle = i * Mathf.PI * 2f / settings.DisruptCircleSegments;
+                    disruptCircle.SetPosition(i, new Vector3(player.position.x + Mathf.Cos(angle) * settings.DisruptRange,
+                        settings.DisruptCircleHeight, player.position.z + Mathf.Sin(angle) * settings.DisruptRange));
+                }
+            }
+        }
+
+        private void DrawCounterProgress()
+        {
+            if (player == null || Camera.main == null) return;
+            var screen = Camera.main.WorldToScreenPoint(player.position + Vector3.up *
+                (settings.PlayerHeight / 2f + settings.ProgressHeight));
+            if (screen.z <= 0f) return;
+            var rect = new Rect(screen.x - settings.ProgressWidth / 2f, Screen.height - screen.y,
+                settings.ProgressWidth, settings.ProgressBarHeight);
+            if (pendingMethod.HasValue)
+            {
+                var previous = GUI.color;
+                GUI.color = Color.black;
+                GUI.DrawTexture(rect, Texture2D.whiteTexture);
+                var duration = pendingMethod == InterferenceMethod.Shoot ? settings.ShootAimTicks : settings.DisruptChannelTicks;
+                rect.width *= Mathf.Clamp01((float)(clock.Tick - actionStartTick) / duration);
+                GUI.color = MethodColor(pendingMethod.Value);
+                GUI.DrawTexture(rect, Texture2D.whiteTexture);
+                GUI.color = previous;
+            }
+            if (clock.Tick < cancelMessageUntil)
+                GUI.Label(new Rect(rect.x, rect.y - 24f, 240f, 24f), cancelMessage);
+        }
+
         private void OnGUI()
         {
             if (settings == null)
                 return;
             DrawResultOverlay();
+            DrawCounterProgress();
             var remaining = attack != null && attack.State == JointAttackState.CounterWindowOpen
                 ? System.Math.Max(0, attack.CounterWindow.End - clock.Tick + 1) : 0;
             var required = plan != null ? plan.ConnectionPoints.Count : 0;
             var broken = attack != null ? (int)System.Math.Round((1d - attack.Severity) * required) : 0;
-            GUI.Box(new Rect(8f, 8f, 460f, 130f), "");
-            GUI.Label(new Rect(12f, 12f, 450f, 120f),
+            GUI.Box(new Rect(8f, 8f, 460f, 155f), "");
+            GUI.Label(new Rect(12f, 12f, 450f, 145f),
                 $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
                 + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
                 + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
+                + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s\n"
                 + (clock.Tick < rangeMessageUntil ? rangeMessage : ""));
         }
 
