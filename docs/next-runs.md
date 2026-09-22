@@ -75,7 +75,7 @@ jevcode run → 리뷰 화면(jevcode-ui.bat)에서 확인 → [수락하고 커
   ```
   리뷰 포인트: 불변식이 실제로 대응을 바꿔 가며 검사되는지(형식적인 테스트가 아닌지), 기획 의도와 맞는지.
 
-- [ ] **T8 카운터 부분 성공**
+- [x] **T8 카운터 부분 성공** — `c5121fb`
   > 판정 규칙을 늘리지 않고 변화를 만드는 축: 연결부를 나눠 끊는 협동. T3의 "창당 1회 성공"을 바꾸는 작업이라 기존 동작 보존 조건을 건다.
   ```powershell
   jevcode run --tag feature "카운터 부분 성공 추가. 기존 T3 규칙 '한 카운터 창에서 한 번만 성공'을 '연결부마다 한 번 성공'으로 바꾼다. 합동 공격의 필수 연결부 수를 N, 창이 닫힐 때까지 끊긴 수를 k라 하면: k = N이면 Broken(기존과 같음), 0 < k < N이면 Weakened로 실행되고 Severity = (N - k) / N, k = 0이면 Executed로 Severity = 1. Severity는 0~1이며 피해량 계산은 이번 범위가 아니다(값만 제공). N = 1인 공격은 기존 동작과 완전히 같아야 한다.
@@ -84,7 +84,7 @@ jevcode run → 리뷰 화면(jevcode-ui.bat)에서 확인 → [수락하고 커
   ```
   리뷰 포인트: 기존 파일(M)의 변경이 처음으로 의미 있는 run. 리뷰 요점의 ⚠ 삭제된 테스트, N = 1 보존 테스트.
 
-- [ ] **T9 복잡도 예산**
+- [x] **T9 복잡도 예산** — `ca091d3`
   > 카운터가 많아져도 어지럽지 않게 상한을 코드로 고정한다. 연출가가 아무리 적응해도 예산을 넘지 못한다.
   ```powershell
   jevcode run --tag feature "복잡도 예산 추가. FairnessRules에 MaxOpenCounterWindows(기본 2)와 MaxRequiredPointsPerAttack(기본 2)를 기획 임시값으로 추가한다. 한 교전의 합동 공격 계획 목록을 받는 AttackSchedule을 만들고, 어느 tick에서든 열린 카운터 창 수가 MaxOpenCounterWindows 이하여야 한다(창은 양끝 tick 포함이므로 끝 tick과 시작 tick이 같으면 겹친 것으로 센다). 필수 연결부가 MaxRequiredPointsPerAttack를 넘는 계획, 또는 예산을 넘는 일정은 생성 단계에서 거부하고 사유를 돌려준다. 연출가 대응이 만든 계획도 반드시 AttackSchedule을 거친다.
@@ -92,7 +92,7 @@ jevcode run → 리뷰 화면(jevcode-ui.bat)에서 확인 → [수락하고 커
   ```
   리뷰 포인트: 경계 tick 겹침 규칙, 연출가 경로가 AttackSchedule을 우회하지 않는지.
 
-- [ ] **T10 콘솔 시뮬레이터 (선택)** — 부분 성공과 복잡도 예산이 들어간 뒤에 해야 의미가 있어 T8에서 옮겼다
+- [x] **T10 콘솔 시뮬레이터** — `cfba2dc` (검증이 병렬 빌드로 멈춰 unknown, 수동으로 208개 통과 확인) — 부분 성공과 복잡도 예산이 들어간 뒤에 해야 의미가 있어 T8에서 옮겼다
   ```powershell
   jevcode run --tag feature "src/Core.Sim 콘솔 앱(net10.0) 추가. 인자: --seed <정수> (기본 1), --encounters <정수> (기본 3).
   플레이어 전략 두 개: AreaFirst(공격의 70%가 적 3명을 맞히는 광역 근접), HealerFirst(공격의 70%가 Healer를 노리는 원거리 단일). 나머지 30%는 시드 기반 무작위로 역할과 거리를 고른다. 교전당 공격 20회, 합동 공격 2회.
@@ -101,6 +101,35 @@ jevcode run → 리뷰 화면(jevcode-ui.bat)에서 확인 → [수락하고 커
   마지막 메시지에 기본 인자로 실행한 출력 예시를 붙인다."
   ```
   리뷰 포인트: 직접 실행해서 교전이 진행될수록 대응이 바뀌는지 눈으로 확인. 재미 검증 전에 규칙을 감각으로 확인하는 용도다.
+
+## 2단계: 수치 감 잡기
+
+T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에서는 플레이어가 전략을 바꾼 교전의 다음 대응이 반응하지 않는다. 회복 집중 0.80이 기억과 섞여 0.475가 되어 임계값에 못 미친다. "적이 얼마나 빨리 나를 읽어야 재미있나"를 숫자로 비교하는 단계다.
+
+- [ ] **T11 시뮬레이터 수치 인자와 기억 표시**
+  ```powershell
+  jevcode run --tag feature "Core.Sim에 기획 수치 인자를 추가한다. 기존 --seed, --encounters 동작은 그대로 둔다.
+  --decay <실수>: ExpeditionSettings.Decay. 0 이상 1 미만, 기본 0.5.
+  --threshold <실수>: TacticSettings의 세 임계값(AreaDependencyThreshold, HealerFocusThreshold, SustainedRangedThreshold)을 한꺼번에 설정. 0~1, 기본 0.5.
+  --area-threshold, --healer-threshold, --ranged-threshold <실수>: 개별 임계값. --threshold보다 우선한다.
+  --strategies <쉼표 목록>: 교전 순서대로 쓸 전략(AreaFirst, HealerFirst). 기본은 지금처럼 번갈아 쓰기. 목록이 교전 수보다 짧으면 마지막 전략을 반복한다.
+  실수는 InvariantCulture로 파싱하고, 범위 밖이나 알 수 없는 인자는 사유를 출력하고 종료 코드 2.
+  출력: 첫 줄에 적용된 설정값을 한 줄로 표시한다. 교전마다 기존 열에 더해 기억에 합친 뒤의 세 경향(Memory Area/Healer/Ranged, 소수 둘째 자리)을 표시해, 어떤 값 때문에 NextTactic이 정해졌는지 보이게 한다.
+  테스트: 각 인자 파싱, 범위 경계(decay 0 허용, 1 거부, threshold 0과 1 허용, 1.01 거부), 개별 임계값 우선, 전략 목록 반복 규칙, 설정 줄과 Memory 열 출력, 기존 인자만 줬을 때의 NextTactic 순서가 이전과 같음, 결정성."
+  ```
+  리뷰 포인트: 직접 실행해서 비교한다.
+  ```powershell
+  dotnet run --project src/Core.Sim -- --seed 1 --strategies AreaFirst,HealerFirst,HealerFirst
+  dotnet run --project src/Core.Sim -- --seed 1 --strategies AreaFirst,HealerFirst,HealerFirst --decay 0.3
+  ```
+  두 번째에서 두 번째 교전 뒤 바로 GuardHealer가 나오면 인자가 제대로 반영된 것이다(손 계산: 회복 기억 0.3 x 0.15 + 0.7 x 0.80 = 0.605).
+
+- [ ] **T12 Decay 비교표 (선택)**
+  ```powershell
+  jevcode run --tag feature "Core.Sim에 --sweep-decay <쉼표 목록> 인자를 추가한다. 목록의 각 Decay 값으로 같은 시드와 같은 전략 순서의 원정을 돌리고, 한 줄에 한 Decay씩 교전별 NextTactic만 나열한 비교표를 출력한다(예: 'decay=0.30  Spread > GuardHealer > GuardHealer'). 다른 인자(--seed, --encounters, --strategies, 임계값)는 모든 줄에 똑같이 적용한다. --sweep-decay와 --decay를 함께 주면 거부한다.
+  테스트: 목록 파싱, 각 줄이 같은 인자로 단독 실행한 결과의 NextTactic 순서와 같음, 잘못된 값 거부, 결정성."
+  ```
+  리뷰 포인트: `--sweep-decay 0.1,0.3,0.5,0.7 --strategies AreaFirst,HealerFirst,HealerFirst,AreaFirst`로 적응 속도 차이를 한눈에 본다.
 
 ## 참고
 
