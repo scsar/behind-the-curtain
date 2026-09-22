@@ -23,30 +23,74 @@ public static class Simulation
     {
         var seed = DefaultSeed;
         var encounters = DefaultEncounters;
+        var decay = ExpeditionSettings.DefaultDecay;
+        var threshold = TacticSettings.DefaultThreshold;
+        double? areaThreshold = null, healerThreshold = null, rangedThreshold = null;
+        PlayerStrategy[]? strategies = null;
         var seen = new HashSet<string>();
         for (var i = 0; i < args.Length; i += 2)
         {
-            if ((args[i] != "--seed" && args[i] != "--encounters")
-                || !seen.Add(args[i]) || i + 1 == args.Length
-                || !int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-                || (args[i] == "--encounters" && value <= 0))
+            var option = args[i];
+            if (option is not ("--seed" or "--encounters" or "--decay" or "--threshold"
+                or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies"))
+                return ArgumentError(error, $"Unknown argument: {option}");
+            if (!seen.Add(option)) return ArgumentError(error, $"Duplicate argument: {option}");
+            if (i + 1 == args.Length) return ArgumentError(error, $"Missing value for {option}");
+            var input = args[i + 1];
+            if (option is "--seed" or "--encounters")
             {
-                error.WriteLine("Usage: Core.Sim [--seed <int>] [--encounters <positive int>]");
-                return 1;
+                if (!int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+                    || (option == "--encounters" && value <= 0))
+                    return ArgumentError(error, $"{option} requires {(option == "--seed" ? "an int" : "a positive int")}: {input}");
+                if (option == "--seed") seed = value;
+                else encounters = value;
             }
-            if (args[i] == "--seed") seed = value;
-            else encounters = value;
+            else if (option == "--strategies")
+            {
+                var names = input.Split(',');
+                strategies = new PlayerStrategy[names.Length];
+                for (var j = 0; j < names.Length; j++)
+                {
+                    switch (names[j].Trim())
+                    {
+                        case "AreaFirst": strategies[j] = PlayerStrategy.AreaFirst; break;
+                        case "HealerFirst": strategies[j] = PlayerStrategy.HealerFirst; break;
+                        default: return ArgumentError(error, $"Unknown strategy '{names[j]}'; expected AreaFirst or HealerFirst.");
+                    }
+                }
+            }
+            else
+            {
+                if (!double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                    || !double.IsFinite(value) || value < 0
+                    || (option == "--decay" ? value >= 1 : value > 1))
+                    return ArgumentError(error, $"{option} requires an invariant real number in {(option == "--decay" ? "[0, 1)" : "[0, 1]")}: {input}");
+                switch (option)
+                {
+                    case "--decay": decay = value; break;
+                    case "--threshold": threshold = value; break;
+                    case "--area-threshold": areaThreshold = value; break;
+                    case "--healer-threshold": healerThreshold = value; break;
+                    case "--ranged-threshold": rangedThreshold = value; break;
+                }
+            }
         }
 
         var random = new Random(seed);
-        var selector = new RuleTacticSelector();
-        if (!Expedition.TryCreate(new ExpeditionSettings(), selector, out var expedition))
+        var tacticSettings = new TacticSettings(areaThreshold ?? threshold,
+            healerThreshold ?? threshold, rangedThreshold ?? threshold);
+        if (!RuleTacticSelector.TryCreate(tacticSettings, out var selector)
+            || !Expedition.TryCreate(new ExpeditionSettings(decay), selector, out var expedition))
             return Fail(error);
 
+        output.WriteLine(FormattableString.Invariant(
+            $"Settings Seed={seed} Encounters={encounters} Decay={decay} AreaThreshold={tacticSettings.AreaDependencyThreshold} HealerThreshold={tacticSettings.HealerFocusThreshold} RangedThreshold={tacticSettings.SustainedRangedThreshold} Strategies={(strategies == null ? "Alternating(AreaFirst,HealerFirst)" : string.Join(",", strategies))}"));
         long tick = 0;
         for (var index = 0; index < encounters; index++)
         {
-            var strategy = index % 2 == 0 ? PlayerStrategy.AreaFirst : PlayerStrategy.HealerFirst;
+            var strategy = strategies == null
+                ? (index % 2 == 0 ? PlayerStrategy.AreaFirst : PlayerStrategy.HealerFirst)
+                : strategies[Math.Min(index, strategies.Length - 1)];
             if (!expedition!.TryStartEncounter(out var tactic)
                 || !CombatObserver.TryCreate(new ObserverSettings(), out var observer)
                 || !tactic.TryCreatePlan(out var plan))
@@ -81,9 +125,10 @@ public static class Simulation
 
             var profile = observer!.EndEncounter();
             if (!expedition.EndEncounter(profile)) return Fail(error);
-            var nextTactic = selector.Select(expedition.Memory!.Value);
+            var memory = expedition.Memory!.Value;
+            var nextTactic = selector!.Select(memory);
             output.WriteLine(FormattableString.Invariant(
-                $"Encounter {index + 1} [{strategy}] Area={profile.AreaDependency:F2} Healer={profile.HealerFocus:F2} Ranged={profile.SustainedRangedRatio:F2} NextTactic={nextTactic.Id} Counter={successes}/{JointAttacksPerEncounter}"));
+                $"Encounter {index + 1} [{strategy}] Area={profile.AreaDependency:F2} Healer={profile.HealerFocus:F2} Ranged={profile.SustainedRangedRatio:F2} NextTactic={nextTactic.Id} Counter={successes}/{JointAttacksPerEncounter} Memory Area={memory.AreaDependency:F2} Healer={memory.HealerFocus:F2} Ranged={memory.SustainedRangedRatio:F2}"));
         }
         expedition!.EndExpedition();
         return 0;
@@ -108,6 +153,13 @@ public static class Simulation
             attacks[i] = new AttackEvent(attacks[i].AreaHitCount, attacks[i].PrimaryTargetRole,
                 attacks[i].Range, startTick + i);
         return attacks;
+    }
+
+    private static int ArgumentError(TextWriter error, string reason)
+    {
+        error.WriteLine(reason);
+        error.WriteLine("Usage: Core.Sim [--seed <int>] [--encounters <positive int>] [--decay <0..1 exclusive>] [--threshold <0..1>] [--area-threshold <0..1>] [--healer-threshold <0..1>] [--ranged-threshold <0..1>] [--strategies <AreaFirst,HealerFirst,...>]");
+        return 2;
     }
 
     private static int Fail(TextWriter error)
