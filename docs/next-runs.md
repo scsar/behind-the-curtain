@@ -243,7 +243,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```powershell
   jevcode run --tag feature "프로토타입에 원정 루프를 붙인다. 교전 = 합동 공격 3사이클. 교전이 끝나면 Expedition에 BehaviorProfile을 합치고, 다음 교전의 대응(Tactic)과 JointAttackPlan을 정한다.
   플레이어 공격(CombatObserver에 기록): Space=광역 근접(반경 3m 안의 인형 모두), F=원거리 단일(가장 가까운 인형), 마우스 왼쪽 클릭=근접 단일. 공격 대상 역할은 인형마다 고정(앞 2개 Guard, 뒤 왼쪽 Attacker, 뒤 오른쪽 Healer, Healer는 초록색).
-  대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. 연결부 위치(앞/옆/뒤)는 U3e에서 만든 몸통 면 배치를 그대로 쓴다.
+  대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. 연결부 위치(앞/옆/뒤)는 U3e에서 만든 몸통 면 배치를 그대로 쓴다. 진형은 파티 중심 기준의 인형 위치로 적용하고, U3d의 파티 회전과 바닥 경고는 교전 중에 그대로 유지한다.
   교전 사이에 2초간 화면 가운데에 '연출가가 각본을 고친다: <대응 이름>'과 기억된 세 경향을 표시한다.
   PrototypeSettings에 교전당 사이클 수를 둔다. 규칙 코어 테스트는 계속 통과해야 한다."
   ```
