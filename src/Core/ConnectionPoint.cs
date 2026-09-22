@@ -18,6 +18,23 @@ namespace BehindTheCurtain.Core
             AllowedMethods = allowedMethods;
         }
 
+        public ConnectionPoint(ConnectionPointKind kind, ConnectionPointPosition position)
+        {
+            Kind = kind;
+            Position = position;
+            ConnectionPointCatalog.TryGetAllowedMethods(kind, out var methods);
+            AllowedMethods = methods;
+        }
+
+        // Legacy method-only points remain usable by low-level attacks, but not by plans.
+        public ConnectionPointKind? Kind { get; }
+        public ConnectionPointPosition Position { get; }
+
+        internal bool IsCatalogPoint => Kind.HasValue
+            && ConnectionPointCatalog.TryGetAllowedMethods(Kind.Value, out var methods)
+            && methods == AllowedMethods
+            && Position >= ConnectionPointPosition.Front && Position <= ConnectionPointPosition.Rear;
+
         public InterferenceMethod AllowedMethods { get; }
 
         internal bool IsValid => AllowedMethods != 0 &&
