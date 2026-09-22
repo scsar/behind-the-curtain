@@ -7,6 +7,7 @@ namespace BehindTheCurtain.Prototype
     {
         private double accumulatedTicks;
         public long Tick { get; private set; }
+        public float Interpolation => (float)accumulatedTicks;
 
         public void Advance(float deltaTime, Action<long> onTick)
         {

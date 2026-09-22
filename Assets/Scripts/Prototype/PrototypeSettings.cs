@@ -26,8 +26,24 @@ namespace BehindTheCurtain.Prototype
         public int SustainedRangedStreak = BehindTheCurtain.Core.ObserverSettings.DefaultSustainedRangedStreak;
         // Requested defaults; provisional pressure tuning values.
         public int Seed = 1;
-        public float PartyOrbitSpeed = 15f; // Degrees per second.
-        public int SlamIntervalTicks = 120;
+        public int AttackCooldownTicks = 90;
+        // Provisional T15 tuning; all decisions and movement are executed by Core.
+        public float PuppetMoveSpeed = 3f;
+        public float PuppetAttackRange = 2f;
+        public float PuppetInterceptDistance = 1.5f;
+        public float PuppetSpreadDistance = 3f;
+        public float PuppetDistanceScale = 10f;
+        public float PuppetApproachWeight = 0.2f;
+        public float PuppetInterceptWeight = 1.5f;
+        public float PuppetSpreadWeight = 0.15f;
+        public float PuppetHoldWeight = 0.1f;
+        public float PuppetAttackWeight = 0.8f;
+        public float PuppetInterceptPositionFloor = 0.6f;
+        public float PuppetPersistenceBonus = 0.02f;
+        public float BrainLabelHeight = 1.5f;
+        public float BrainLabelWidth = 240f;
+        public float BrainLabelPanelHeight = 100f;
+        public Color BrainGoalColor = Color.cyan;
         public int SlamWarningTicks = 24;
         public float SlamRadius = 2f;
         // Provisional pressure presentation values.

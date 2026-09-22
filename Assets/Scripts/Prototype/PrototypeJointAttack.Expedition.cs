@@ -58,12 +58,13 @@ namespace BehindTheCurtain.Prototype
         private bool FinishEncounter(long tick)
         {
             CancelAction(null);
-            if (!expedition.EndEncounter(observer.EndEncounter()) || !PrepareEncounter())
+            if (!expedition.EndEncounterWithIndividuals(observer.EndEncounterWithIndividuals()) || !PrepareEncounter())
             {
                 lastReason = "Encounter transition rejected";
                 enabled = false;
                 return false;
             }
+            if (!InitializeBrain()) return false;
             intermission = true;
             intermissionUntil = tick + settings.IntermissionTicks;
             nextAttackTick = intermissionUntil;
@@ -135,12 +136,25 @@ namespace BehindTheCurtain.Prototype
                 targets[i] = new AttackTarget(offset.magnitude, Vector3.Angle(aim, offset),
                     i < 2 ? TargetRole.Guard : i == 3 ? TargetRole.Healer : TargetRole.Attacker);
             }
+            // Core's legacy resolver records anonymously. Use a scratch observer, then
+            // attach identity once to the encounter observer without duplicating hit rules.
+            var observerSettings = new ObserverSettings(settings.MinimumAreaHitCount, settings.SustainedRangedStreak);
+            CombatObserver.TryCreate(observerSettings, out var scratch);
             if (!PlayerAttack.TryResolve(kind, targets, settings.MeleeAttackRadius, settings.RangedAttackConeDegrees,
-                clock.Tick, observer, out var hits))
+                clock.Tick, scratch, out var hits))
             {
                 attackLabels.Add(new AttackLabel { Target = player, Text = "빗나감", Start = feedbackTick });
                 return;
             }
+            var hitTargets = new AttackTarget[hits.Count];
+            for (var h = 0; h < hits.Count; h++) hitTargets[h] = targets[hits[h]];
+            // Ask Core for the nearest primary among the already resolved hits.
+            CombatObserver.TryCreate(observerSettings, out var primaryScratch);
+            if (!PlayerAttack.TryResolve(PlayerAttackKind.Melee, hitTargets, double.MaxValue, 180,
+                clock.Tick, primaryScratch, out var primary)) return;
+            if (!observer.Observe(new AttackEvent(kind == PlayerAttackKind.AreaMelee ? hits.Count : 0,
+                hitTargets[primary[0]].Role, kind == PlayerAttackKind.Ranged ? AttackRange.Ranged : AttackRange.Melee,
+                clock.Tick, PlayerAgentId, true))) return;
             foreach (var i in hits)
             {
                 puppetFlashUntil[i] = feedbackTick + settings.PuppetHitFlashTicks;
@@ -167,12 +181,16 @@ namespace BehindTheCurtain.Prototype
             var profile = observer.CurrentProfile;
             GUI.Box(new Rect(8f, 8f, 540f, 166f), "");
             GUI.Label(new Rect(12f, 12f, 530f, 24f),
-                $"교전 {encounterNumber} | {(intermission ? "다음 대응" : "대응")}: {tactic.Id} | 사이클 {completedCycles}/{settings.EncounterCycles}");
-            DrawTendency(42f, "광역 의존", profile.AreaDependency, tacticSettings.AreaDependencyThreshold);
-            DrawTendency(70f, "힐러 집중", profile.HealerFocus, tacticSettings.HealerFocusThreshold);
-            DrawTendency(98f, "원거리 지속", profile.SustainedRangedRatio, tacticSettings.SustainedRangedThreshold);
+                $"교전 {encounterNumber} | 사이클 {completedCycles}/{settings.EncounterCycles} | F1: 개발 오버레이");
+            if (debugOverlay)
+            {
+                GUI.Label(new Rect(12f, 150f, 530f, 24f), $"대응: {tactic.Id}");
+                DrawTendency(42f, "광역 의존", profile.AreaDependency, tacticSettings.AreaDependencyThreshold);
+                DrawTendency(70f, "힐러 집중", profile.HealerFocus, tacticSettings.HealerFocusThreshold);
+                DrawTendency(98f, "원거리 지속", profile.SustainedRangedRatio, tacticSettings.SustainedRangedThreshold);
+            }
             GUI.Label(new Rect(12f, 130f, 530f, 36f), "Space: 광역 근접 | F: 원거리 단일 | 좌클릭: 근접 단일");
-            if (intermission)
+            if (debugOverlay && intermission)
             {
                 var memory = expedition.Memory.Value;
                 GUI.Box(new Rect(Screen.width / 2f - 300f, Screen.height / 2f - 45f, 600f, 90f),

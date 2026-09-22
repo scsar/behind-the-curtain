@@ -17,10 +17,7 @@ namespace BehindTheCurtain.Prototype
         }
 
         private readonly List<Slam> slams = new List<Slam>();
-        private System.Random pressureRandom;
         private Vector3 partyCenter;
-        private int orbitDirection;
-        private long nextSlamTick;
         private int cycleHitCount;
         private long hitFlashStart = -1;
         private Material playerMaterial;
@@ -29,15 +26,13 @@ namespace BehindTheCurtain.Prototype
         private Mesh slamMesh;
 
         private bool ValidPressureSettings()
-            => settings.SlamIntervalTicks > 0 && settings.SlamWarningTicks > 0 &&
+            => settings.AttackCooldownTicks > 0 && settings.SlamWarningTicks > 0 &&
                 settings.SlamFlashTicks > 0 && settings.HitFlashTicks > 0 && settings.HitBlinkTicks > 0 &&
                 settings.SlamCircleSegments >= 3 && settings.SlamRadius > 0f &&
-                !float.IsInfinity(settings.SlamRadius) && settings.PartyOrbitSpeed >= 0f &&
-                !float.IsInfinity(settings.PartyOrbitSpeed);
+                !float.IsInfinity(settings.SlamRadius);
 
         private void InitializePressure()
         {
-            pressureRandom = new System.Random(settings.Seed);
             foreach (var position in restPositions) partyCenter += position;
             partyCenter /= restPositions.Length;
             var forward = Vector3.ProjectOnPlane(player.position - partyCenter, Vector3.up);
@@ -74,21 +69,11 @@ namespace BehindTheCurtain.Prototype
 
         private void StartPressureCycle()
         {
-            orbitDirection = pressureRandom.Next(2) == 0 ? -1 : 1;
             cycleHitCount = 0;
-            nextSlamTick = attack.CounterWindow.Start;
         }
 
         private void AdvancePressure(long tick)
         {
-            // Core owns attack phases and the inclusive counter window.
-            if (attack != null && (attack.State == JointAttackState.Telegraphing || WindowOpen))
-                RotateParty();
-            if (WindowOpen && tick >= nextSlamTick)
-            {
-                CreateSlam(tick);
-                nextSlamTick = tick + settings.SlamIntervalTicks;
-            }
             for (var i = slams.Count - 1; i >= 0; i--)
             {
                 var slam = slams[i];
@@ -111,31 +96,9 @@ namespace BehindTheCurtain.Prototype
             }
         }
 
-        private void RotateParty()
+        private void CreateSlam(long tick, Vec2 target)
         {
-            var rotation = Quaternion.Euler(0f,
-                orbitDirection * settings.PartyOrbitSpeed / PrototypeSettings.TicksPerSecond, 0f);
-            var limit = settings.FloorSize / 2f - settings.PuppetSize / 2f;
-            // Reject the whole step at the edge, preserving the party's spacing and centre.
-            foreach (var position in restPositions)
-            {
-                var rotated = partyCenter + rotation * (position - partyCenter);
-                if (Mathf.Abs(rotated.x) > limit || Mathf.Abs(rotated.z) > limit) return;
-            }
-            for (var i = 0; i < puppets.Length; i++)
-            {
-                restPositions[i] = partyCenter + rotation * (restPositions[i] - partyCenter);
-                restRotations[i] = rotation * restRotations[i];
-                puppets[i].position = restPositions[i];
-                puppets[i].rotation = restRotations[i];
-            }
-            // Raycasts in this tick must see the moving bodies, including catch-up ticks.
-            Physics.SyncTransforms();
-        }
-
-        private void CreateSlam(long tick)
-        {
-            var center = new Vector3(player.position.x, settings.SlamHeight, player.position.z);
+            var center = new Vector3((float)target.X, settings.SlamHeight, (float)target.Z);
             var view = new GameObject("Slam Warning");
             view.transform.SetParent(transform, false);
             view.transform.position = center;

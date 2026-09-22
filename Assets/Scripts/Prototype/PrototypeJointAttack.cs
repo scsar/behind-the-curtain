@@ -123,7 +123,7 @@ namespace BehindTheCurtain.Prototype
                 settings.DisruptCircleSegments, true);
             InitializePressure();
             InitializePlayerAttacks();
-            ApplyFormation();
+            if (!InitializeBrain()) return;
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
         }
 
@@ -207,6 +207,9 @@ namespace BehindTheCurtain.Prototype
             clock.Advance(Time.deltaTime, OnTick);
             if (!enabled)
                 return;
+            // Frame input samples the same interpolated bodies that are shown on screen.
+            UpdatePresentation();
+            Physics.SyncTransforms();
             if (Application.isFocused && keyboard != null)
             {
                 if (keyboard.digit1Key.wasPressedThisFrame) TryCounter(InterferenceMethod.Cut);
@@ -215,6 +218,7 @@ namespace BehindTheCurtain.Prototype
             }
             ObserveResult();
             UpdatePresentation();
+            Physics.SyncTransforms();
             UpdateHitPresentation();
         }
 
@@ -236,9 +240,8 @@ namespace BehindTheCurtain.Prototype
                 intermission = false;
                 encounterNumber++;
                 completedCycles = 0;
-                ApplyFormation();
             }
-            if (!intermission && attack == null && tick >= nextAttackTick && slams.Count == 0)
+            if (!intermission && attack == null && tick >= nextAttackTick)
             {
                 if (!plan.TryCreateAttack(tick, out attack))
                 {
@@ -250,6 +253,7 @@ namespace BehindTheCurtain.Prototype
             }
             if (attack != null)
                 attack.Advance(tick);
+            if (!intermission && !AdvanceBrain(tick)) return;
             AdvancePressure(tick);
             AdvanceCounterAction();
             ObserveResult();
@@ -527,8 +531,8 @@ namespace BehindTheCurtain.Prototype
             }
             for (var i = 0; i < puppets.Length; i++)
             {
-                puppets[i].position = restPositions[i];
-                puppets[i].rotation = restRotations[i];
+                puppets[i].position = Vector3.Lerp(previousPositions[i], restPositions[i], clock.Interpolation);
+                puppets[i].rotation = Quaternion.Slerp(previousRotations[i], restRotations[i], clock.Interpolation);
                 if (resultStartTick >= 0)
                 {
                     var elapsed = clock.Tick - resultStartTick;
@@ -554,7 +558,7 @@ namespace BehindTheCurtain.Prototype
                     var bottom = i < markers.Length ? ConnectionPosition(i)
                         : puppets[i].position + Vector3.up * (settings.PuppetSize / 2f);
                     var top = i < markers.Length ? bottom + Vector3.up * settings.ThreadHeight
-                        : restPositions[i] + Vector3.up * settings.ThreadHeight;
+                        : puppets[i].position + Vector3.up * settings.ThreadHeight;
                     line.SetPosition(0, bottom);
                     line.SetPosition(1, (bottom + top) / 2f + Vector3.right * (settings.ThreadSag * (1f - tension)));
                     line.SetPosition(2, top);
@@ -571,8 +575,11 @@ namespace BehindTheCurtain.Prototype
         private void LateUpdate()
         {
             if (plan == null || puppets == null) return;
+            if (Application.isFocused && Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
+                debugOverlay = !debugOverlay;
             Physics.SyncTransforms();
             UpdateCounter();
+            UpdateBrainLines();
             UpdatePlayerAttacks();
             if (aimLine == null) return;
             var previewIndex = SelectShootTarget();
@@ -636,6 +643,7 @@ namespace BehindTheCurtain.Prototype
             DrawResultOverlay();
             DrawCounterProgress();
             DrawExpedition();
+            DrawBrainOverlay();
             var remaining = attack != null && attack.State == JointAttackState.CounterWindowOpen
                 ? System.Math.Max(0, attack.CounterWindow.End - clock.Tick + 1) : 0;
             var required = plan != null ? plan.ConnectionPoints.Count : 0;
