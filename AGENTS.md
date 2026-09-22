@@ -29,6 +29,17 @@
   (-m:1 필수: 샌드박스 안에서는 병렬 빌드의 MSBuild 작업자 프로세스가 통신하지 못해 멈춘다.)
 - 마지막 메시지의 맨 끝에 커밋 메시지 제안을 한 줄로 남긴다: `Commit: <type>(<scope>): <요약>`
 
+## Unity 규칙
+- Unity 6 (6000.3), 쿼터뷰 프로토타입. 규칙 코어는 로컬 패키지(`file:../src/Core`)로 참조한다.
+- 규칙 코어는 C# 9 이하 문법만 쓴다(Unity 6 호환, Core.csproj의 LangVersion 9.0).
+- 씬(.unity), 프리팹(.prefab), 에셋(.asset) YAML을 직접 만들거나 고치지 않는다.
+  화면 구성은 런타임 코드(도형 생성, 카메라 배치)로 한다.
+- .meta 파일은 만들지 않는다. Unity가 생성하고, 사람이 따로 커밋한다.
+- 입력은 새 Input System API(Keyboard.current, Mouse.current)로 직접 읽는다. InputActions 에셋을 고치지 않는다.
+- ProjectSettings/와 Packages/manifest.json은 요청받았을 때만 바꾼다.
+- 게임 규칙 판정은 반드시 src/Core를 통한다. Unity 스크립트에 판정 로직을 복제하지 않는다.
+- Unity 컴파일은 샌드박스에서 확인할 수 없다. 마지막 메시지에 사람이 에디터에서 확인할 항목을 적는다.
+
 ## 커밋 규칙
 - 형식: <type>(<scope>): <요약>. type은 feat, fix, refactor, test, docs, chore.
 - 한 커밋에는 한 가지 목적만 담는다. 테스트가 통과하는 상태만 커밋한다.

@@ -106,7 +106,7 @@ jevcode run → 리뷰 화면(jevcode-ui.bat)에서 확인 → [수락하고 커
 
 T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에서는 플레이어가 전략을 바꾼 교전의 다음 대응이 반응하지 않는다. 회복 집중 0.80이 기억과 섞여 0.475가 되어 임계값에 못 미친다. "적이 얼마나 빨리 나를 읽어야 재미있나"를 숫자로 비교하는 단계다.
 
-- [ ] **T11 시뮬레이터 수치 인자와 기억 표시**
+- [x] **T11 시뮬레이터 수치 인자와 기억 표시** — `e8a83cf`
   ```powershell
   jevcode run --tag feature "Core.Sim에 기획 수치 인자를 추가한다. 기존 --seed, --encounters 동작은 그대로 둔다.
   --decay <실수>: ExpeditionSettings.Decay. 0 이상 1 미만, 기본 0.5.
@@ -124,12 +124,70 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   두 번째에서 두 번째 교전 뒤 바로 GuardHealer가 나오면 인자가 제대로 반영된 것이다(손 계산: 회복 기억 0.3 x 0.15 + 0.7 x 0.80 = 0.605).
 
-- [ ] **T12 Decay 비교표 (선택)**
+- [ ] **T12 Decay 비교표 (선택, 보류)** — T11로 값을 하나씩 바꿔 비교할 수 있어 Unity 프로토타입을 먼저 한다
   ```powershell
   jevcode run --tag feature "Core.Sim에 --sweep-decay <쉼표 목록> 인자를 추가한다. 목록의 각 Decay 값으로 같은 시드와 같은 전략 순서의 원정을 돌리고, 한 줄에 한 Decay씩 교전별 NextTactic만 나열한 비교표를 출력한다(예: 'decay=0.30  Spread > GuardHealer > GuardHealer'). 다른 인자(--seed, --encounters, --strategies, 임계값)는 모든 줄에 똑같이 적용한다. --sweep-decay와 --decay를 함께 주면 거부한다.
   테스트: 목록 파싱, 각 줄이 같은 인자로 단독 실행한 결과의 NextTactic 순서와 같음, 잘못된 값 거부, 결정성."
   ```
   리뷰 포인트: `--sweep-decay 0.1,0.3,0.5,0.7 --strategies AreaFirst,HealerFirst,HealerFirst,AreaFirst`로 적응 속도 차이를 한눈에 본다.
+
+## 3단계: Unity 프로토타입 (쿼터뷰)
+
+목표: 합동 공격 전조 → 카운터 입력 → 인형이 무너짐을 **직접 눌러 보고**, 연출가의 대응 변화가 화면에서 읽히는지 확인한다. 기획 문서의 "재미 검증"의 첫 단계다. Unity 관련 규칙은 `AGENTS.md`의 "Unity 규칙"에 있다.
+
+**Unity run의 흐름 (기존 흐름과 다른 점)**
+
+1. run 전에 **Unity 에디터를 닫는다.** 열려 있으면 파일 변경을 감지해 .meta 등을 만들고, 그 변경이 run 기록에 섞인다.
+2. run이 끝나면 리뷰 화면에서 코드를 본 뒤, **Unity를 열어 콘솔 에러가 0인지, Play로 동작하는지** 확인한다. 검증 명령(규칙 코어 테스트)은 Unity 컴파일을 확인하지 못한다.
+3. 수락하고 커밋한다.
+4. Unity가 새로 만든 .meta 파일은 따로 커밋한다: `git add -- '*.meta'` 후 `git commit -m "chore(client): Unity meta"`.
+
+- [ ] **U1 규칙 코어를 Unity 로컬 패키지로 연결**
+  ```powershell
+  jevcode run --tag scaffold "규칙 코어를 Unity에서 쓸 수 있게 연결한다.
+  1) 저장소 루트에 Directory.Build.props를 만들어 UseArtifactsOutput을 켠다(빌드 산출물을 artifacts/로). src/Core, tests 아래의 기존 bin/, obj/ 폴더는 삭제한다. .gitignore에 artifacts/를 추가한다. 이유: Unity가 패키지 폴더 안의 Core.dll까지 가져오면 같은 타입이 두 번 정의된다.
+  2) src/Core/Core.csproj에 LangVersion 9.0을 설정한다(Unity 6 호환).
+  3) src/Core에 package.json(name com.behindthecurtain.core, version 0.1.0, unity 6000.3, displayName Behind the Curtain Core)과 BehindTheCurtain.Core.asmdef(noEngineReferences true, rootNamespace BehindTheCurtain.Core)를 만든다. nullable 경고를 없애기 위해 asmdef 옆에 csc.rsp(-nullable:enable)를 둔다.
+  4) Packages/manifest.json의 dependencies에 \"com.behindthecurtain.core\": \"file:../src/Core\"를 추가한다.
+  5) Assets/Scripts/Prototype/BehindTheCurtain.Prototype.asmdef를 만들고 BehindTheCurtain.Core와 Unity.InputSystem을 참조한다.
+  dotnet test tests/Core.Tests --no-restore -m:1이 계속 통과해야 한다. 마지막 메시지에 Unity에서 확인할 항목(패키지가 Package Manager에 보이는지, 콘솔 에러 0)을 적는다."
+  ```
+  리뷰 포인트: Unity를 열어 Package Manager의 In Project에 Behind the Curtain Core가 보이고 콘솔 에러가 0인지. `artifacts/`가 무시되는지.
+
+- [ ] **U2 쿼터뷰 장면과 이동**
+  > 사람이 먼저 할 일: Unity에서 빈 씬을 만들어 `Assets/Scenes/Prototype.unity`로 저장하고 커밋한다(씬 파일은 에이전트가 만들지 않는다).
+  ```powershell
+  jevcode run --tag feature "Assets/Scripts/Prototype에 PrototypeBootstrap을 만든다. RuntimeInitializeOnLoadMethod(AfterSceneLoad)로, 활성 씬 이름이 Prototype일 때만 동작한다. 다른 씬에는 아무것도 하지 않는다.
+  생성할 것: 20x20 바닥(Plane), 플레이어(Capsule, 파란색), 인형 파티 4개(Cube, 회색, 플레이어 앞 8m에 2x2 진형), 조명 1개, 카메라.
+  카메라: 쿼터뷰. 플레이어를 따라가며 피치 50도, 요 45도, 거리 14m, 원근 투영 FOV 30. 따라가기는 부드럽게(SmoothDamp).
+  이동: WASD를 카메라 기준 방향으로 변환해 이동, 속도 5m/s. Keyboard.current로 입력을 읽는다. 물리 없이 transform으로 이동하고 바닥 밖으로 나가지 않게 제한한다.
+  수치(카메라 각도, 거리, 속도)는 PrototypeSettings(ScriptableObject가 아닌 일반 직렬화 클래스, 기본값 코드에 명시)로 모은다.
+  규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 Play에서 확인할 항목을 적는다."
+  ```
+  리뷰 포인트: Play에서 쿼터뷰로 보이는지, WASD가 화면 기준으로 움직이는지, 다른 씬에 영향이 없는지.
+
+- [ ] **U3 합동 공격과 카운터 입력**
+  ```powershell
+  jevcode run --tag feature "프로토타입에 합동 공격 한 사이클을 연결한다. 판정은 모두 src/Core(JointAttack, CounterResolver, JointAttackPlan)를 쓴다.
+  시간: 고정 30 tick/초. PrototypeClock이 Time.deltaTime을 누적해 정수 tick을 진행한다.
+  사이클: 3초 대기 → 전조(인형 위로 조종 실을 LineRenderer로 표시, 점점 팽팽해지는 느낌으로 색을 흰색에서 주황으로) → 카운터 창(실이 밝게 깜박임, 노출 연결부를 인형 위 작은 구로 표시) → 실행 또는 붕괴 → 반복.
+  연결부 색은 간섭 방식별로 고정: Cut 빨강, Shoot 파랑, Disrupt 노랑.
+  입력: 1=Cut(거리 2.5m 이내), 2=Shoot(거리 무관), 3=Disrupt(거리 6m 이내). 누르면 해당 방식을 허용하는 가장 가까운 노출 연결부를 대상으로 CounterResolver를 호출한다. 거리 조건을 못 채우면 시도하지 않고 화면에 사유를 1초 표시한다.
+  결과 표현: 연결부를 끊으면 그 구가 사라짐. Broken이면 인형들이 기울며 주저앉음(0.5초 회전). Weakened면 인형이 짧게 흔들리고 화면 가장자리가 옅게 붉어짐. Executed면 화면이 붉게 번쩍임.
+  화면 왼쪽 위에 상태 텍스트(OnGUI): 현재 단계, 남은 창 tick, 끊은 연결부 수/필수 수, 마지막 판정 사유.
+  수치(대기 시간, 거리, 색)는 PrototypeSettings에 둔다. 규칙 코어 테스트는 계속 통과해야 한다."
+  ```
+  리뷰 포인트: **직접 해 보기.** 전조가 읽히는지, 창이 너무 짧거나 길지 않은지, 1·2·3의 차이가 느껴지는지. 이 run부터가 재미 검증이다.
+
+- [ ] **U4 연출가의 적응을 화면에서 읽기**
+  ```powershell
+  jevcode run --tag feature "프로토타입에 원정 루프를 붙인다. 교전 = 합동 공격 3사이클. 교전이 끝나면 Expedition에 BehaviorProfile을 합치고, 다음 교전의 대응(Tactic)과 JointAttackPlan을 정한다.
+  플레이어 공격(CombatObserver에 기록): Space=광역 근접(반경 3m 안의 인형 모두), F=원거리 단일(가장 가까운 인형), 마우스 왼쪽 클릭=근접 단일. 공격 대상 역할은 인형마다 고정(앞 2개 Guard, 뒤 왼쪽 Attacker, 뒤 오른쪽 Healer, Healer는 초록색).
+  대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. JointAttackPlan의 연결부 위치(앞/옆/뒤)를 실제 인형 기준 위치로 배치한다.
+  교전 사이에 2초간 화면 가운데에 '연출가가 각본을 고친다: <대응 이름>'과 기억된 세 경향을 표시한다.
+  PrototypeSettings에 교전당 사이클 수를 둔다. 규칙 코어 테스트는 계속 통과해야 한다."
+  ```
+  리뷰 포인트: 광역만 쓰다가 회복 역할 노리기로 바꿨을 때, **한 교전 뒤에** 진형이 바뀌는 게 눈에 보이는지(T11에서 본 적응 지연). 그게 재미있는지, 답답한지.
 
 ## 참고
 
