@@ -330,7 +330,8 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   > `docs/ai-design.md`의 "행동 계약". T15 명세가 요소 하나씩만 정해서 생긴 도망·군체·독점을 고친다. Core만 바꾸고 U5의 Unity 코드는 그대로 쓴다. 끝나면 시뮬레이션 궤적을 먼저 확인하고 Play한다.
   ```powershell
   jevcode run --tag fix "docs/ai-design.md의 '행동 계약'(역할별 계약, 금지 패턴)을 src/Core의 인형 행동(PuppetActions, PuppetBrain, PuppetSettings)에 적용한다. Unity 코드는 바꾸지 않는다. 공개 API(PuppetBrain.GetDecision, World 등)는 U5가 쓰므로 유지한다.
-  1) 역할별 행동: 역할(TargetRole)마다 쓸 수 있는 행동과 기본 가중치를 따로 둔다. Guard: hold(앞자리), engage, attack, intercept. Attacker: engage, attack, spread. Healer: hold(뒷자리), keepDistance(새 행동 id, ActionIds에 추가), spread. Healer만 사람에게서 물러날 수 있다.
+  1) 역할별 가중치 표: 모든 역할이 같은 행동 후보(approach, attack, hold, intercept, spread, keepDistance)를 갖고, 역할(TargetRole)마다 기본 가중치 표를 둔다. 가중치 0은 '기본적으로 안 함'이지 금지가 아니다. 기본값: Guard는 hold(앞자리)·approach·attack·intercept, Attacker는 approach·attack·spread, Healer는 hold(뒷자리)·keepDistance·spread(keepDistance는 새 행동 id로 ActionIds에 추가). 기본값에서는 Healer만 물러난다. intercept는 행동 정의상 Guard 전용이 아니라 가중치로만 Guard에 켜 둔다.
+  1-1) 대응이 역할별로 바꾼다: 의도 배율을 (역할, 행동) 단위로 둔다. 블랙보드 키는 '<역할>:<행동>'이고, 없으면 기존 '<행동>' 키(T14)로 떨어진다(기존 대응 표와 호환). IntentionSettings에 역할별 항목을 넣을 수 있게 하고, 기본 대응 표는 지금 값을 유지한다. 행동이 플레이어 패턴에 따라 바뀌어야 하므로, 새 대응은 이 표에 행을 더하는 것만으로 만들 수 있어야 한다.
   2) engage(기존 approach를 대체하되 id는 approach를 유지해 의도 표와 호환): 대상은 방패 전진이면 원거리 위협자, 아니면 가장 가까운 사람. 공격 거리 밖이면 거리와 관계없이 일정한 점수(가까워져도 떨어지지 않음), 공격 거리 안이면 0이 되고 attack이 이어받는다. attack의 기본 가중치는 engage보다 높다.
   3) hold: 위협 반경(ThreatRadius, 기본 6m) 안에 사람이 없을 때만 높고, 있으면 거의 0.
   4) keepDistance(Healer): 가장 가까운 사람과의 거리를 KeepMin(5m)~KeepMax(8m)로 유지하고, 가장 가까운 Guard 뒤(사람 반대쪽)를 목표로 한다.
@@ -338,7 +339,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   6) 개체 차이: 인형마다 행동 가중치에 시드 기반 ±WeightJitter(15%)를 곱한다(AgentId와 시드로 결정, 교전 동안 고정). 재평가 시점을 인형마다 엇갈리게 한다(인형 순번 × 간격 / 인형 수만큼 오프셋).
   7) 시뮬레이션 궤적: src/Core.Sim에 --puppets <approach|circle|retreat|healer> 옵션을 추가한다. 플레이어 한 명이 정해진 경로로 움직이는 10초 시나리오를 돌려 0.5초마다 tick, 플레이어 위치, 인형별 역할·행동·위치를 출력하고, 끝에 금지 패턴 지표(도망 tick 수, 인형별 행동 전환 수, 동시 전환 비율, 막아서기 인원 최대값, 공격 거리 안 체류 시 공격 여부)를 출력한다. approach = 12m에서 5m/s로 파티 정면을 향해 와서 3m에 멈춤, circle = 파티 중심에서 4m 반지름으로 돈다, retreat = 3m에서 12m로 물러남, healer = 힐러 집중 기억이 있는 상태로 힐러 쪽으로 돌아 들어감.
   수치는 설정 타입에 두고 임의로 정한 값임을 표시한다.
-  테스트: docs/ai-design.md '금지 패턴' 표의 다섯 기준을 위 네 시나리오로 검사한다(도망 0, 진동, 동시 전환 20% 미만, 막아서기 한 명 이하와 비보호 대응 20% 미만, 공격 거리 1초 체류 시 공격). 추가로 같은 상황에서 Guard·Attacker·Healer가 서로 다른 행동을 고르는지, 같은 시드면 궤적이 같은지. 기존 T15 테스트 중 approach가 가까워지면 약해지는 것을 전제로 한 것은 새 계약에 맞게 고치고, 무엇을 왜 바꿨는지 기존 동작 변경 섹션에 적는다. 규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 네 시나리오의 금지 패턴 지표를 표로 적는다."
+  테스트: docs/ai-design.md '금지 패턴' 표의 기준을 위 네 시나리오로 검사한다. '항상 금지'(진동, 군체 동기화, 겹치기, 무반응)는 기본 대응과 아래 사용자 정의 대응 모두에서, '기본값에서만 금지'(이유 없는 도망, 막아서기 과다)는 기본 대응에서 검사한다. 역할별 의도 확인: 테스트 전용 대응으로 Attacker의 keepDistance를 켜면 Attacker가 거리 범위를 일관되게 유지하며 물러나고(진동 없음), 켜지 않으면 Attacker는 물러나지 않는다. 추가로 같은 상황에서 Guard·Attacker·Healer가 서로 다른 행동을 고르는지, 같은 시드면 궤적이 같은지. 기존 T15 테스트 중 approach가 가까워지면 약해지는 것을 전제로 한 것은 새 계약에 맞게 고치고, 무엇을 왜 바꿨는지 기존 동작 변경 섹션에 적는다. 규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 네 시나리오의 금지 패턴 지표를 표로 적는다."
   ```
   리뷰 포인트: 마지막 메시지의 지표 표가 모든 기준을 통과하는지. 리뷰 뒤 `dotnet run --project src/Core.Sim -- --puppets approach`(나머지 셋도)로 궤적을 직접 확인한다(사람이 하거나 Claude에게 요청). 이상이 없을 때만 Play로 **재미**를 본다: 다가가면 Guard가 맞서고 Attacker가 파고드는지, Healer만 뒤로 빠지는지, 힐러를 노리던 나를 Guard 한 명이 따라다니는지.
 
