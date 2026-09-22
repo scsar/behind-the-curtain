@@ -68,7 +68,7 @@ namespace BehindTheCurtain.Prototype
                         settings.PuppetSize / 2f,
                         settings.PuppetPartyDistance + (row - 0.5f) * settings.PuppetSpacing);
                     var puppet = CreatePrimitive(PrimitiveType.Cube,
-                        $"Puppet {row * 2 + column + 1}", position, settings.PuppetColor);
+                        $"Puppet {row * 2 + column + 1}", position, settings.PuppetColor, true);
                     puppet.localScale = Vector3.one * settings.PuppetSize;
                     puppets.Add(puppet);
                 }
@@ -114,15 +114,19 @@ namespace BehindTheCurtain.Prototype
             return child;
         }
 
-        private Transform CreatePrimitive(PrimitiveType type, string objectName, Vector3 position, Color color)
+        private Transform CreatePrimitive(PrimitiveType type, string objectName, Vector3 position, Color color,
+            bool keepCollider = false)
         {
             var primitive = GameObject.CreatePrimitive(type);
             primitive.name = objectName;
             primitive.transform.SetParent(transform, false);
             primitive.transform.position = position;
             var collider = primitive.GetComponent<Collider>();
-            collider.enabled = false;
-            Destroy(collider);
+            if (!keepCollider)
+            {
+                collider.enabled = false;
+                Destroy(collider);
+            }
 
             var renderer = primitive.GetComponent<Renderer>();
             var pipeline = GraphicsSettings.currentRenderPipeline;

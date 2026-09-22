@@ -13,6 +13,12 @@ namespace BehindTheCurtain.Prototype
         // Requested defaults; provisional tuning values for the prototype.
         public int ShootAimTicks = 18;
         public int ShootCooldownTicks = 60;
+        public float ShootConeDegrees = 20f; // Maximum horizontal deviation from AimDirection.
+        public int ShootMessageTicks = TicksPerSecond;
+        // Provisional preview tuning values.
+        public float ShootPreviewScale = 1.35f;
+        public Color ShootPreviewColor = new Color(1f, 1f, 1f, 0.3f);
+        public Color ShootOccludedPreviewColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
         public int DisruptChannelTicks = 45;
         public int CancelMessageTicks = TicksPerSecond;
         // Provisional presentation values.

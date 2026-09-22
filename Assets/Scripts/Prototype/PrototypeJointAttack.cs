@@ -7,6 +7,7 @@ using UnityEngine.Rendering;
 namespace BehindTheCurtain.Prototype
 {
     /// <summary>Input and presentation adapter. Attack transitions and counter results belong to Core.</summary>
+    [DefaultExecutionOrder(100)] // Consume Bootstrap's aim after its LateUpdate.
     public sealed class PrototypeJointAttack : MonoBehaviour
     {
         private readonly PrototypeClock clock = new PrototypeClock();
@@ -36,12 +37,16 @@ namespace BehindTheCurtain.Prototype
         private Vector3 actionPosition;
         private LineRenderer aimLine;
         private LineRenderer disruptCircle;
+        private PrototypeBootstrap controls;
+        private Transform shootPreview;
+        private Material shootPreviewMaterial;
 
         public void Initialize(PrototypeSettings configuration, Transform playerTransform,
             IReadOnlyList<Transform> puppetTransforms)
         {
             settings = configuration;
             player = playerTransform;
+            controls = GetComponent<PrototypeBootstrap>();
             // A provisional three-point layout exercises all input methods in one attack.
             var points = new[] {
                 new ConnectionPoint(ConnectionPointKind.Thread, ConnectionPointPosition.Front),
@@ -61,7 +66,9 @@ namespace BehindTheCurtain.Prototype
                 settings.ShakeTicks < 1 || settings.FlashTicks < 1 || settings.ThreadBlinkTicks < 1 ||
                 settings.ShootAimTicks < 1 || settings.ShootCooldownTicks < 0 ||
                 settings.DisruptChannelTicks < 1 || settings.CancelMessageTicks < 1 ||
-                settings.DisruptCircleSegments < 3)
+                settings.DisruptCircleSegments < 3 || settings.ShootMessageTicks < 1 ||
+                !(settings.ShootConeDegrees >= 0f && settings.ShootConeDegrees <= 180f) ||
+                !(settings.ShootPreviewScale > 1f))
             {
                 lastReason = "Invalid prototype presentation settings";
                 enabled = false;
@@ -101,6 +108,21 @@ namespace BehindTheCurtain.Prototype
                 markers[i] = sphere.transform;
             }
             aimLine = CreateCounterLine("Shoot Aim", settings.ShootColor, 2, false);
+            var preview = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            preview.name = "Shoot Target Preview";
+            preview.transform.SetParent(transform, false);
+            preview.transform.localScale = Vector3.one * settings.ConnectionDiameter * settings.ShootPreviewScale;
+            var previewCollider = preview.GetComponent<Collider>();
+            previewCollider.enabled = false;
+            Destroy(previewCollider);
+            shootPreviewMaterial = CreateUnlitMaterial(settings.ShootPreviewColor);
+            ConfigureTransparentPreview(shootPreviewMaterial);
+            var previewRenderer = preview.GetComponent<Renderer>();
+            previewRenderer.sharedMaterial = shootPreviewMaterial;
+            previewRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            previewRenderer.receiveShadows = false;
+            shootPreview = preview.transform;
+            preview.SetActive(false);
             disruptCircle = CreateCounterLine("Disrupt Range", settings.DisruptColor,
                 settings.DisruptCircleSegments, true);
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
@@ -170,7 +192,7 @@ namespace BehindTheCurtain.Prototype
             if (material.HasProperty("_Color")) material.SetColor("_Color", color);
         }
 
-        private void Update()
+        private void UpdateCounter()
         {
             if (plan == null || puppets == null)
                 return;
@@ -231,6 +253,19 @@ namespace BehindTheCurtain.Prototype
                 return;
             }
             var method = pendingMethod.Value;
+            if (method == InterferenceMethod.Shoot)
+            {
+                if (!IsShootCandidate(aimTargetIndex) || ShootAngle(aimTargetIndex) > settings.ShootConeDegrees)
+                {
+                    RejectShoot("조준 벗어남");
+                    return;
+                }
+                if (IsShootOccluded(aimTargetIndex))
+                {
+                    RejectShoot("가려짐");
+                    return;
+                }
+            }
             var duration = method == InterferenceMethod.Shoot ? settings.ShootAimTicks : settings.DisruptChannelTicks;
             if (clock.Tick - actionStartTick < duration) return;
             var targetIndex = aimTargetIndex;
@@ -271,6 +306,94 @@ namespace BehindTheCurtain.Prototype
         private Vector3 ConnectionPosition(int index)
             => puppets[index].position + Vector3.up * settings.ConnectionHeight;
 
+        private bool IsShootCandidate(int index)
+            => WindowOpen && index >= 0 && index < attack.ConnectionPoints.Count &&
+                !severedViews.Contains(attack.ConnectionPoints[index]) &&
+                (attack.ConnectionPoints[index].AllowedMethods & InterferenceMethod.Shoot) != 0;
+
+        private float ShootAngle(int index)
+        {
+            var direction = Vector3.ProjectOnPlane(ConnectionPosition(index) - player.position, Vector3.up);
+            var aim = Vector3.ProjectOnPlane(controls != null ? controls.AimDirection : player.forward, Vector3.up);
+            return direction.sqrMagnitude > 0f && aim.sqrMagnitude > 0f
+                ? Vector3.Angle(aim, direction) : float.PositiveInfinity;
+        }
+
+        private int SelectShootTarget()
+        {
+            if (!WindowOpen) return -1;
+            var selected = -1;
+            var smallestAngle = float.PositiveInfinity;
+            for (var i = 0; i < attack.ConnectionPoints.Count; i++)
+            {
+                if (!IsShootCandidate(i)) continue;
+                var angle = ShootAngle(i);
+                if (angle <= settings.ShootConeDegrees && angle < smallestAngle)
+                {
+                    selected = i;
+                    smallestAngle = angle;
+                }
+            }
+            return selected;
+        }
+
+        private bool IsPuppetBody(Collider collider, int targetIndex)
+        {
+            if (collider.transform.IsChildOf(player) || collider.transform.IsChildOf(markers[targetIndex]))
+                return false;
+            foreach (var puppet in puppets)
+                if (collider.transform.IsChildOf(puppet)) return true;
+            return false;
+        }
+
+        private bool IsShootOccluded(int index)
+        {
+            var origin = player.position + Vector3.up * settings.ConnectionHeight;
+            var offset = ConnectionPosition(index) - origin;
+            var distance = offset.magnitude;
+            if (distance <= 0f) return false;
+            var ray = new Ray(origin, offset / distance);
+            if (!Physics.Raycast(ray, out var first, distance, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+                return false;
+            if (IsPuppetBody(first.collider, index)) return true;
+            // Ignore self, connection markers and non-body geometry without hiding bodies behind them.
+            foreach (var hit in Physics.RaycastAll(ray, distance, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+                if (IsPuppetBody(hit.collider, index)) return true;
+            return false;
+        }
+
+        private void RejectShoot(string reason)
+        {
+            CancelAction(null);
+            cancelMessage = reason;
+            cancelMessageUntil = clock.Tick + settings.ShootMessageTicks;
+        }
+
+        private static void ConfigureTransparentPreview(Material material)
+        {
+            // Explicit blend state for HDRP, URP and the built-in pipeline.
+            if (material.shader.name == "Unlit/Color")
+            {
+                var shader = Shader.Find("Sprites/Default");
+                if (shader != null) material.shader = shader;
+            }
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_SurfaceType", 1f);
+            material.SetFloat("_BlendMode", 0f);
+            // HDRP premultiplies alpha in the shader, including its Alpha blend mode.
+            material.SetInt("_SrcBlend", (int)(material.shader.name == "HDRP/Unlit"
+                ? BlendMode.One : BlendMode.SrcAlpha));
+            material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_AlphaSrcBlend", (int)BlendMode.One);
+            material.SetInt("_AlphaDstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+            material.SetInt("_TransparentZWrite", 0);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = (int)RenderQueue.Transparent;
+        }
+
         private void TryCounter(InterferenceMethod method)
         {
             if (pendingMethod == method) return;
@@ -288,7 +411,23 @@ namespace BehindTheCurtain.Prototype
             ConnectionPoint target = null;
             var targetIndex = -1;
             var closestDistance = float.PositiveInfinity;
-            if (attack != null && attack.State == JointAttackState.CounterWindowOpen)
+            if (method == InterferenceMethod.Shoot)
+            {
+                targetIndex = SelectShootTarget();
+                if (targetIndex < 0)
+                {
+                    RejectShoot("조준 대상 없음");
+                    return;
+                }
+                if (IsShootOccluded(targetIndex))
+                {
+                    RejectShoot("가려짐");
+                    return;
+                }
+                target = attack.ConnectionPoints[targetIndex];
+                closestDistance = Vector3.Distance(player.position, ConnectionPosition(targetIndex));
+            }
+            else if (attack != null && attack.State == JointAttackState.CounterWindowOpen)
             {
                 for (var i = 0; i < attack.ConnectionPoints.Count; i++)
                 {
@@ -399,7 +538,18 @@ namespace BehindTheCurtain.Prototype
 
         private void LateUpdate()
         {
+            if (plan == null || puppets == null) return;
+            Physics.SyncTransforms();
+            UpdateCounter();
             if (aimLine == null) return;
+            var previewIndex = SelectShootTarget();
+            shootPreview.gameObject.SetActive(previewIndex >= 0);
+            if (previewIndex >= 0)
+            {
+                shootPreview.position = ConnectionPosition(previewIndex);
+                SetMaterialColor(shootPreviewMaterial, IsShootOccluded(previewIndex)
+                    ? settings.ShootOccludedPreviewColor : settings.ShootPreviewColor);
+            }
             // Also catch movement performed by another component later in Update.
             if (pendingMethod.HasValue && player.position != actionPosition)
                 CancelAction("Movement");
