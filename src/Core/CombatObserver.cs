@@ -1,8 +1,24 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+
 namespace BehindTheCurtain.Core
 {
-    /// <summary>Observes one encounter using constant memory and no external clock.</summary>
+    /// <summary>Observes one encounter using memory proportional to human attackers and no external clock.</summary>
     public sealed class CombatObserver
     {
+        private readonly Dictionary<AgentId, CombatObserver> individuals = new Dictionary<AgentId, CombatObserver>();
+        public IReadOnlyDictionary<AgentId, BehaviorProfile> CurrentIndividualProfiles
+        {
+            get
+            {
+                var result = new Dictionary<AgentId, BehaviorProfile>();
+                foreach (var pair in individuals) result.Add(pair.Key, pair.Value.CurrentProfile);
+                return new ReadOnlyDictionary<AgentId, BehaviorProfile>(result);
+            }
+        }
+        public EncounterObservation EndEncounterWithIndividuals() =>
+            new EncounterObservation(EndEncounter(), CurrentIndividualProfiles);
+
         private readonly ObserverSettings settings;
         private long total;
         private long area;
@@ -35,10 +51,20 @@ namespace BehindTheCurtain.Core
         /// </summary>
         public bool Observe(AttackEvent attack)
         {
-            if (ended || !attack.IsValid || total == long.MaxValue
+            if (ended || !attack.IsValid) return false;
+            // Valid bot events are ignored, including their ticks and streak breaks.
+            if (!attack.IsHuman) return true;
+            if (total == long.MaxValue
                 || (total > 0 && attack.Tick < lastTick))
                 return false;
 
+            if (attack.AttackerId.HasValue)
+            {
+                var id = attack.AttackerId.Value;
+                if (!individuals.TryGetValue(id, out var individual))
+                    individuals.Add(id, individual = new CombatObserver(settings));
+                individual.Observe(new AttackEvent(attack.AreaHitCount, attack.PrimaryTargetRole, attack.Range, attack.Tick));
+            }
             total++;
             lastTick = attack.Tick;
             if (attack.AreaHitCount >= settings.MinimumAreaHitCount)

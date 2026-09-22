@@ -21,18 +21,26 @@ namespace BehindTheCurtain.Core
         /// <param name="tick">Signed integer occurrence tick.</param>
         public AttackEvent(int areaHitCount, TargetRole primaryTargetRole, AttackRange range, long tick)
         {
+            AttackerId = null;
+            IsHuman = true;
             AreaHitCount = areaHitCount;
             PrimaryTargetRole = primaryTargetRole;
             Range = range;
             Tick = tick;
         }
 
+        public AttackEvent(int areaHitCount, TargetRole primaryTargetRole, AttackRange range, long tick,
+            AgentId attackerId, bool isHuman) : this(areaHitCount, primaryTargetRole, range, tick)
+        { AttackerId = attackerId; IsHuman = isHuman; }
+
+        public AgentId? AttackerId { get; }
+        public bool IsHuman { get; }
         public int AreaHitCount { get; }
         public TargetRole PrimaryTargetRole { get; }
         public AttackRange Range { get; }
         public long Tick { get; }
 
-        internal bool IsValid => AreaHitCount >= 0
+        internal bool IsValid => (!AttackerId.HasValue || AttackerId.Value.IsValid) && AreaHitCount >= 0
             && (PrimaryTargetRole == TargetRole.Healer || PrimaryTargetRole == TargetRole.Guard
                 || PrimaryTargetRole == TargetRole.Attacker)
             && (Range == AttackRange.Melee || Range == AttackRange.Ranged);
