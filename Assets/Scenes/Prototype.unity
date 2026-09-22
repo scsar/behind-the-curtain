@@ -591,9 +591,136 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
+--- !u!1 &2122456428
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2122456429}
+  - component: {fileID: 2122456430}
+  m_Layer: 0
+  m_Name: Settings
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2122456429
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2122456428}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0, y: 0, z: -0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2122456430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2122456428}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 076b19da0dce08546b303ec2462ef9e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BehindTheCurtain.Prototype::BehindTheCurtain.Prototype.PrototypeBootstrap
+  settings:
+    Seed: 1
+    PartyOrbitSpeed: 15
+    SlamIntervalTicks: 120
+    SlamWarningTicks: 24
+    SlamRadius: 2
+    SlamFlashTicks: 6
+    HitFlashTicks: 12
+    HitBlinkTicks: 3
+    SlamCircleSegments: 64
+    SlamHeight: 0.04
+    SlamWarningColor: {r: 1, g: 0, b: 0, a: 0.3}
+    SlamFlashColor: {r: 1, g: 0.7, b: 0.7, a: 0.8}
+    HitColor: {r: 1, g: 0, b: 0, a: 1}
+    AttackWaitTicks: 90
+    RangeMessageTicks: 30
+    CollapseTicks: 15
+    ShootAimTicks: 18
+    ShootCooldownTicks: 60
+    ShootConeDegrees: 20
+    ShootMessageTicks: 30
+    ShootPreviewScale: 1.35
+    ShootPreviewColor: {r: 1, g: 1, b: 1, a: 0.3}
+    ShootOccludedPreviewColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.3}
+    DisruptChannelTicks: 45
+    CancelMessageTicks: 30
+    CounterLineWidth: 0.025
+    DisruptCircleSegments: 64
+    DisruptCircleHeight: 0.03
+    ProgressHeight: 0.3
+    ProgressWidth: 80
+    ProgressBarHeight: 8
+    CutRange: 2.5
+    DisruptRange: 6
+    CutColor: {r: 1, g: 0, b: 0, a: 1}
+    ShootColor: {r: 0, g: 0, b: 1, a: 1}
+    DisruptColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+    ThreadStartColor: {r: 1, g: 1, b: 1, a: 1}
+    ThreadTautColor: {r: 1, g: 0.5, b: 0, a: 1}
+    TelegraphTicks: 60
+    CounterWindowTicks: 90
+    MaxRequiredPoints: 3
+    ResultTicks: 30
+    ShakeTicks: 12
+    FlashTicks: 12
+    ThreadBlinkTicks: 6
+    ConnectionHeight: 1.2
+    ConnectionDiameter: 0.22
+    ThreadHeight: 4
+    ThreadWidth: 0.035
+    ThreadSag: 0.6
+    CollapseAngle: 65
+    CollapseDrop: 0.25
+    ShakeAngle: 8
+    ShakeCycles: 2
+    ScreenEdgeFraction: 0.06
+    ThreadBlinkColor: {r: 3, g: 3, b: 3, a: 1}
+    WeakenedScreenColor: {r: 1, g: 0, b: 0, a: 0.18}
+    ExecutedScreenColor: {r: 1, g: 0, b: 0, a: 0.65}
+    FloorSize: 20
+    MoveSpeed: 5
+    CameraPitch: 50
+    CameraYaw: 45
+    CameraDistance: 14
+    TurnSpeed: 720
+    RotateSensitivity: 0.2
+    MinPitch: 25
+    MaxPitch: 75
+    MinDistance: 8
+    MaxDistance: 24
+    ZoomStep: 1.5
+    CameraFieldOfView: 30
+    PuppetPartyDistance: 8
+    CameraSmoothTime: 0.15
+    PuppetSpacing: 2
+    PlayerRadius: 0.5
+    PlayerHeight: 2
+    PuppetSize: 1
+    LightEulerAngles: {x: 50, y: -30, z: 0}
+    PlayerColor: {r: 0, g: 0, b: 1, a: 1}
+    PuppetColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    FloorColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1564075554}
   - {fileID: 571157087}
+  - {fileID: 2122456429}
