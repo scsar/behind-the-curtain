@@ -141,6 +141,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
 1. run 전에 **Unity 에디터는 열어 두되 창을 건드리지 않는다**(포커스를 주면 파일 변경을 감지해 .meta 등을 만들고, 그 변경이 run 기록에 섞인다). **MCP for Unity 서버는 꺼 둔다.** 샌드박스가 로컬 서버 접속을 막지 않기 때문이다. 켜져 있으면 run 시작 때 경고가 뜬다.
 2. run이 끝나면 jevcode가 자동으로 Unity 재컴파일과 콘솔 에러를 확인한다(`jevcode init --unity` 설정, 검증 항목 `unity: recompile + console errors (host)`). 에디터가 꺼져 있으면 `unknown`으로 기록된다. 리뷰 화면에서 코드와 이 결과를 본 뒤, **Play로 동작을 직접 확인**한다.
 3. 수락하고 커밋한다. 이 run이 추가한 파일의 .meta도 함께 커밋된다(따로 커밋할 필요 없음).
+4. 수치는 씬에 직접 배치한 `PrototypeBootstrap`의 Inspector에서 조정한다(빈 오브젝트에 컴포넌트 추가, 씬 저장). 씬에 저장된 값이 코드 기본값보다 우선하므로, run이 기본값을 바꿨다면 컴포넌트 ⋮ 메뉴의 **Reset**을 눌러야 반영된다.
 
 - [x] **U1 규칙 코어를 Unity 로컬 패키지로 연결** — `f1b4a47` (bin/obj 삭제는 Codex 정책에 막혀 수동 처리)
   ```powershell
@@ -226,11 +227,23 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   리뷰 포인트: **여기서부터 재미 판단.** 채널링과 조준에 긴장감이 생기는지, 답답하기만 한지. 취소 사유로 이동·피격·창 종료가 실제로 나오는지. 인형이 도는 속도 때문에 Cut이 쫓아가기 귀찮은 일이 되지 않는지.
 
+- [ ] **U3e 연결부를 몸통 면에 붙이고 가림을 고친다 (U3 단계 마무리)**
+  > U3c의 가림은 판정 코드는 맞지만, 레이(바닥 기준 2.2m)가 연결부(1.7m)로 내려가는 동안 인형 상자(0~1m) 위를 지나 한 번도 막히지 않았다. 연결부도 모두 자기 인형 머리 위에 있어서 앞/옆/뒤 구분이 없었다. 이 run으로 U3 단계를 닫는다. 이후 아이디어는 `docs/planning.md`의 이후 후보로 보낸다.
+  ```powershell
+  jevcode run --tag fix "프로토타입의 연결부 배치와 Shoot 가림을 고친다. 판정은 지금처럼 src/Core를 쓰고 src/Core는 바꾸지 않는다.
+  배치: 각 연결부를 ConnectionPoint.Position(Front/Left/Right/Rear)에 따라 자기 인형 몸통의 해당 면 중앙(인형 높이의 절반, 면에서 ConnectionSurfaceOffset 기본 0.05m 바깥)에 둔다. 방향 기준은 인형 파티의 정면이다. 처음에는 플레이어 시작 위치를 향하고, U3d의 파티 회전을 따라 함께 돈다. 연결부 구는 매 프레임 이 위치를 따라간다. 조종 실(LineRenderer)은 새 연결부 위치에서 위로 올라간다.
+  Shoot: 레이 출발점은 플레이어 발밑에서 ShootOriginHeight(기본 1.0m) 높이로 따로 둔다. ConnectionHeight와 섞어 쓰지 않는다. 레이는 대상 연결부 ShootOcclusionMargin(기본 0.1m) 앞에서 멈춘다. 대상의 자기 인형 몸통도 가림에 포함한다. 그래서 뒤쪽 면의 연결부는 정면에서 쏘면 막힌다.
+  Cut과 Disrupt의 거리는 새 연결부 위치를 기준으로 잰다.
+  바닥 경고: SlamIntervalTicks 기본값을 45에서 120으로 바꾼다(대규모 공격 주기, Disrupt 채널링 45tick이 두 경고 사이에 들어가게).
+  수치는 PrototypeSettings에 둔다. 기존 동작 변경 섹션에 연결부 위치, 레이 높이, 경고 주기의 변화를 적는다. 사람이 할 일에 '씬에 배치한 PrototypeBootstrap이 있으면 컴포넌트를 Reset해야 새 기본값이 반영됨'을 적는다. 규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 Play에서 확인할 항목을 적는다."
+  ```
+  리뷰 포인트: 연결부가 인형의 앞/옆/뒤 면에 붙어 보이는지. 뒤쪽 면의 Anchor를 정면에서 겨누면 회색(가려짐) 미리보기가 뜨고, 돌아 들어가면 흰색이 되는지. 경고 주기가 늘어서 채널링을 끝낼 수 있는지. 이걸로 U3 단계를 닫고 U4로 간다.
+
 - [ ] **U4 연출가의 적응을 화면에서 읽기**
   ```powershell
   jevcode run --tag feature "프로토타입에 원정 루프를 붙인다. 교전 = 합동 공격 3사이클. 교전이 끝나면 Expedition에 BehaviorProfile을 합치고, 다음 교전의 대응(Tactic)과 JointAttackPlan을 정한다.
   플레이어 공격(CombatObserver에 기록): Space=광역 근접(반경 3m 안의 인형 모두), F=원거리 단일(가장 가까운 인형), 마우스 왼쪽 클릭=근접 단일. 공격 대상 역할은 인형마다 고정(앞 2개 Guard, 뒤 왼쪽 Attacker, 뒤 오른쪽 Healer, Healer는 초록색).
-  대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. JointAttackPlan의 연결부 위치(앞/옆/뒤)를 실제 인형 기준 위치로 배치한다.
+  대응을 진형으로 보여준다: SpreadFormation은 인형 간격 2배, GuardHealer는 Guard 하나가 Healer 앞으로, ShieldAdvance는 인형들이 플레이어 쪽으로 2m 전진, StandardFormation은 기본 진형. 연결부 위치(앞/옆/뒤)는 U3e에서 만든 몸통 면 배치를 그대로 쓴다.
   교전 사이에 2초간 화면 가운데에 '연출가가 각본을 고친다: <대응 이름>'과 기억된 세 경향을 표시한다.
   PrototypeSettings에 교전당 사이클 수를 둔다. 규칙 코어 테스트는 계속 통과해야 한다."
   ```

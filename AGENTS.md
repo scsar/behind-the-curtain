@@ -43,6 +43,7 @@
 - ProjectSettings/와 Packages/manifest.json은 요청받았을 때만 바꾼다.
 - 게임 규칙 판정은 반드시 src/Core를 통한다. Unity 스크립트에 판정 로직을 복제하지 않는다.
 - Unity 컴파일은 샌드박스에서 확인할 수 없다. 마지막 메시지에 사람이 에디터에서 확인할 항목을 적는다.
+- PrototypeSettings의 기존 기본값을 바꾸면, 사람이 할 일에 "씬에 배치한 PrototypeBootstrap은 컴포넌트를 Reset해야 반영됨"을 적는다(씬에 저장된 값이 코드 기본값보다 우선한다).
 
 ## 커밋 규칙
 - 형식: <type>(<scope>): <요약>. type은 feat, fix, refactor, test, docs, chore.
