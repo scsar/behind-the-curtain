@@ -18,6 +18,7 @@ namespace BehindTheCurtain.Core
         private readonly Dictionary<string, Reservation> reservations = new Dictionary<string, Reservation>(StringComparer.Ordinal);
         private readonly Dictionary<string, double> intentions = new Dictionary<string, double>(StringComparer.Ordinal);
         private long? lastTick;
+        internal Func<string, AgentId, bool>? ReservationAllowed { get; set; }
 
         /// <summary>Store immutable values/snapshots. Facts are supplied by the caller, not synchronized from World.</summary>
         public AiFailure SetFact<T>(string key, T value)
@@ -58,6 +59,8 @@ namespace BehindTheCurtain.Core
         {
             if (string.IsNullOrWhiteSpace(key)) return AiResult<Reservation>.Fail(AiFailure.InvalidKey);
             if (!owner.IsValid) return AiResult<Reservation>.Fail(AiFailure.InvalidId);
+            if (ReservationAllowed != null && !ReservationAllowed(key, owner))
+                return AiResult<Reservation>.Fail(AiFailure.InvalidState);
             if (expiresAtTick < tick || (lastTick.HasValue && tick < lastTick.Value))
                 return AiResult<Reservation>.Fail(AiFailure.InvalidTick);
             Advance(tick);
@@ -84,6 +87,15 @@ namespace BehindTheCurtain.Core
             foreach (var pair in reservations)
                 if (pair.Value.ExpiresAtTick < tick) expired.Add(pair.Key);
             foreach (var key in expired) reservations.Remove(key);
+        }
+
+        internal void RemoveAgentReservations(AgentId id, bool removeTarget)
+        {
+            var removed = new List<string>();
+            foreach (var pair in reservations)
+                if (pair.Value.Owner.Equals(id) || (removeTarget && pair.Key == "intercept:" + id.Value))
+                    removed.Add(pair.Key);
+            foreach (var key in removed) reservations.Remove(key);
         }
     }
 }

@@ -111,7 +111,7 @@ namespace BehindTheCurtain.Core
                 var away = new Vec2(0, 0);
                 AgentState? nearest = null;
                 double nearestDistance = double.PositiveInfinity;
-                foreach (var other in c.World.GetAgents())
+                foreach (var other in c.World.GetParticipatingAgents())
                 {
                     if (other.Side != Side.Puppets || other.Id.Equals(c.Agent.Id)) continue;
                     double distance = Distance(c.Agent.Position, other.Position);
@@ -176,14 +176,16 @@ namespace BehindTheCurtain.Core
         private AgentState? Healer(UtilityContext c)
         {
             // A running intercept keeps its reserved healer even if healers exchange proximity.
-            if (protectedHealer.HasValue) return c.World.Get(protectedHealer.Value).Value;
+            if (protectedHealer.HasValue && c.World.IsParticipating(protectedHealer.Value))
+                return c.World.Get(protectedHealer.Value).Value;
+            protectedHealer = null;
             return Nearest(c, a => a.Side == Side.Puppets && a.Role == TargetRole.Healer);
         }
         private static AgentState? Nearest(UtilityContext c, Func<AgentState, bool> predicate)
         {
             AgentState? nearest = null;
             double best = double.PositiveInfinity;
-            foreach (var a in c.World.GetAgents())
+            foreach (var a in c.World.GetParticipatingAgents())
             {
                 if (!predicate(a)) continue;
                 double distance = Distance(c.Agent.Position, a.Position);

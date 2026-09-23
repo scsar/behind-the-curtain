@@ -90,6 +90,7 @@ namespace BehindTheCurtain.Core
 
         public AiResult<UtilitySelection> Select(long tick)
         {
+            if (!world.CanAct(agentId)) return AiResult<UtilitySelection>.Fail(AiFailure.InvalidState);
             if (lastRequestedTick.HasValue && tick < lastRequestedTick.Value)
                 return AiResult<UtilitySelection>.Fail(AiFailure.InvalidTick);
             // Unsigned difference handles the full signed tick range without overflow.

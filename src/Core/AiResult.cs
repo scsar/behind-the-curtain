@@ -6,7 +6,7 @@ namespace BehindTheCurtain.Core
         InvalidRadius, DuplicateAgent, AgentNotFound, InvalidAction, TargetNotFound,
         InvalidKey, InvalidValue, FactNotFound, InvalidTick, ReservationConflict,
         ReservationNotFound, InvalidRange, InvalidSettings, InvalidConsideration,
-        InvalidInput, InvalidCurve, InvalidWeight, DuplicateAction
+        InvalidInput, InvalidCurve, InvalidWeight, DuplicateAction, InvalidState
     }
 
     public readonly struct AiResult<T>

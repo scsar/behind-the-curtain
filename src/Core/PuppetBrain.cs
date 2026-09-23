@@ -35,13 +35,14 @@ namespace BehindTheCurtain.Core
         private readonly Dictionary<AgentId, PuppetDecision> decisions = new Dictionary<AgentId, PuppetDecision>();
         private long? lastTick;
         private long firstTick;
+        private long participationVersion;
         private PuppetBrain(World world, PuppetSettings settings, List<Puppet> puppets)
         { this.world = world; this.settings = settings; this.puppets = puppets; }
 
         public static AiResult<PuppetBrain> Create(World world, PuppetSettings settings, DeterministicRandom random)
         {
             if (world == null) return AiResult<PuppetBrain>.Fail(AiFailure.InvalidValue);
-            if (settings == null || !settings.IsValid || random == null)
+            if (settings == null || !settings.IsValid || random == null || world.StateSettings == null || !world.StateSettings.IsValid)
                 return AiResult<PuppetBrain>.Fail(AiFailure.InvalidSettings);
             var puppets = new List<Puppet>();
             ulong encounterSeed = (ulong)(random.NextDouble() * uint.MaxValue);
@@ -54,11 +55,12 @@ namespace BehindTheCurtain.Core
                 if (!selector.Success) return AiResult<PuppetBrain>.Fail(selector.Failure);
                 puppets.Add(new Puppet(agent.Id, actions, selector.Value));
             }
+            world.SetStateTickRate(settings.TicksPerSecond);
             return AiResult<PuppetBrain>.Ok(new PuppetBrain(world, settings, puppets));
         }
 
         /// <summary>No decision exists before the first successful tick.</summary>
-        public AiResult<PuppetDecision> GetDecision(AgentId id) => decisions.TryGetValue(id, out var value)
+        public AiResult<PuppetDecision> GetDecision(AgentId id) => world.CanAct(id) && decisions.TryGetValue(id, out var value)
             ? AiResult<PuppetDecision>.Ok(value) : AiResult<PuppetDecision>.Fail(AiFailure.AgentNotFound);
 
         public AiFailure Tick(long tick)
@@ -66,12 +68,16 @@ namespace BehindTheCurtain.Core
             if (lastTick.HasValue && (lastTick.Value == long.MaxValue || tick != lastTick.Value + 1))
                 return AiFailure.InvalidTick;
             if (!lastTick.HasValue) firstTick = tick;
+            var advanced = world.AdvancePuppetStates(tick, settings.TicksPerSecond);
+            if (advanced != AiFailure.None) return advanced;
+            bool participationChanged = participationVersion != world.ParticipationVersion;
             var pending = new List<PuppetDecision>();
             int ordinal = 0;
             foreach (var puppet in puppets)
             {
                 int offset = (int)((long)ordinal++ * settings.ReevaluationIntervalTicks / puppets.Count);
-                bool evaluate = !decisions.ContainsKey(puppet.Id) ||
+                if (!world.CanAct(puppet.Id)) { decisions.Remove(puppet.Id); continue; }
+                bool evaluate = participationChanged || !decisions.ContainsKey(puppet.Id) ||
                     unchecked((ulong)tick - (ulong)firstTick) % (ulong)settings.ReevaluationIntervalTicks == (ulong)offset;
                 var selected = evaluate ? puppet.Selector.Select(tick)
                     : AiResult<UtilitySelection>.Ok(new UtilitySelection(decisions[puppet.Id].Selection.ActionId,
@@ -87,7 +93,8 @@ namespace BehindTheCurtain.Core
             {
                 var agent = world.Get(decision.AgentId).Value;
                 var next = Clamp(PuppetActions.MoveTowards(agent.Position, decision.Goal,
-                    (decision.Selection.ActionId == ActionIds.KeepDistance ? settings.KeepDistanceSpeed : settings.MoveSpeed) / settings.TicksPerSecond));
+                    (decision.Selection.ActionId == ActionIds.KeepDistance ? settings.KeepDistanceSpeed : settings.MoveSpeed)
+                    * world.MovementScale(agent.Id) / settings.TicksPerSecond));
                 var movementContext = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
                 next = Clamp(puppets.Find(p => p.Id.Equals(agent.Id))!.Actions
                     .ConstrainMovement(movementContext, decision.Selection.ActionId, next));
@@ -105,6 +112,7 @@ namespace BehindTheCurtain.Core
                 decisions[agent.Id] = decision;
             }
             lastTick = tick;
+            participationVersion = world.ParticipationVersion;
             return AiFailure.None;
         }
 

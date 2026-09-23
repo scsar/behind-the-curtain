@@ -43,7 +43,7 @@ namespace BehindTheCurtain.Core
         public AgentId? Target { get; }
     }
 
-    public sealed class World
+    public sealed partial class World
     {
         private readonly Dictionary<AgentId, AgentState> agents = new Dictionary<AgentId, AgentState>();
         private readonly Blackboard puppets = new Blackboard();
@@ -69,12 +69,19 @@ namespace BehindTheCurtain.Core
         }
 
         public AiResult<AgentState> Add(AgentState? agent)
+            => Add(agent, new PuppetInitialState());
+
+        public AiResult<AgentState> Add(AgentState? agent, PuppetInitialState initialState)
         {
             if (agent == null || !agent.Id.IsValid) return AiResult<AgentState>.Fail(AiFailure.InvalidId);
             if (agents.ContainsKey(agent.Id)) return AiResult<AgentState>.Fail(AiFailure.DuplicateAgent);
             var failure = Validate(agent);
             if (failure != AiFailure.None) return AiResult<AgentState>.Fail(failure);
+            if (agent.Side == Side.Puppets && (initialState == null || !initialState.IsValid || StateSettings == null || !StateSettings.IsValid
+                || (initialState.Values.TryGetValue(PuppetValueId.Posture, out var posture) && posture > StateSettings.MaxPosture)))
+                return AiResult<AgentState>.Fail(AiFailure.InvalidValue);
             agents.Add(agent.Id, agent);
+            if (agent.Side == Side.Puppets) AddPuppetState(agent.Id, initialState);
             return AiResult<AgentState>.Ok(agent);
         }
 
