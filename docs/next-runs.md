@@ -345,9 +345,9 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
 
 ## 5단계: 인형 상태 (`docs/ai-design.md` "인형 상태")
 
-> 핵심 논지는 다양성이다. 인형의 행동을 배역 하나가 아니라 몸·결·실·상황·연출가의 겹침으로 만든다. 한 run이 너무 무거워지지 않게(T15r 한 번에 Pro 5시간 한도의 33%) T16을 넷으로 나눴다. T16b 명령은 T16a를 Play한 뒤에 쓴다.
+> 핵심 논지는 다양성이다. 인형의 행동을 배역 하나가 아니라 몸·결·실·상황·연출가의 겹침으로 만든다. 한 run이 너무 무거워지지 않게(T15r 한 번에 Pro 5시간 한도의 33%) T16을 넷으로 나누고, T16a는 다시 상태(T16a-1)와 실(T16a-2)로 나눴다. T16b 명령은 T16a-2와 T17을 확인한 뒤에 쓴다.
 
-- [ ] **U5f 인형 공격이 계속 나가고, 인형이 대상을 본다 (U5 수정)**
+- [x] **U5f 인형 공격이 계속 나가고, 인형이 대상을 본다 (U5 수정)** — `76ad5e8`
   > T15r Play의 "지나치면 뒤에서 멀뚱히 서 있음" 중 두 원인. 작은 수정이다. 세 번째 원인(Guard가 자리로 돌아감)은 T16b에서 고친다.
   ```powershell
   jevcode run --tag fix "인형 공격이 한 번만 나가고 멈추는 문제와 인형이 대상을 보지 않는 문제를 고친다. 다른 행동 선택 규칙은 바꾸지 않는다.
@@ -358,25 +358,39 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   리뷰 포인트: Play에서 인형들 사이를 지나 뒤쪽 2m 안에 가만히 서 본다. 3초마다 바닥 경고가 계속 떨어지는지, 인형들이 나를 향해 도는지. 공격이 너무 잦아 답답하면 AttackCooldownTicks만 조정한다(코드 수정 없이).
 
-- [ ] **T16a 개체 상태와 실 (Core)**
-  > `docs/ai-design.md` "인형 상태"의 몸·실 장력·적의 두 종류·조율 예산. 결과 상황은 T16b다. 이번에는 **장력이 낮아지면 배역이 옅어지고 비틀거린다**까지만 만든다. 결이 들어가기 전의 임시 끌림이다.
+- [x] **T16a-1 개체 상태 (Core)** — `66fbb87`
+  > `docs/ai-design.md` "인형 상태"의 몸과 적의 두 종류. **상태 기계만 만든다.** 행동 점수는 건드리지 않으므로, 입력이 없으면 동작이 T15r과 같다. 장력을 점수에 반영하고 연출가가 조이는 것은 T16a-2다.
   ```powershell
-  jevcode run --tag feature "docs/ai-design.md의 '인형 상태' 중 몸, 실 장력, 적의 두 종류(인형 / 인형화된 사람), 연출가의 조율 예산과 실 회수를 src/Core에 구현한다. 결과 상황은 다음 run(T16b)에서 한다. Unity 코드는 바꾸지 않는다. 공개 API(PuppetBrain.GetDecision, World 등)는 U5가 쓰므로 유지하고, 새 기능은 추가로만 넣는다.
+  jevcode run --tag feature "docs/ai-design.md의 '인형 상태' 중 개체 상태, 몸, 적의 두 종류(인형 / 인형화된 사람)를 src/Core에 구현한다. 행동 점수 계산은 바꾸지 않는다(장력의 점수 반영과 조율은 다음 run T16a-2). Unity 코드는 바꾸지 않는다. 공개 API(PuppetBrain.GetDecision, World 등)는 U5가 쓰므로 유지하고, 새 기능은 추가로만 넣는다.
   1) 개체 상태: 인형 편 개체마다 상태를 둔다. Kind(Puppet | Humanized, 기본 Puppet), Health(기본 100), Posture(기본 100), Tension(0~1, 시작 1), Status(Active | Groggy | Released | Broken | Downed). 수치 항목은 식별자 → 값의 모음으로 늘릴 수 있게 한다(관찰 경향과 같은 방식). 호출자가 교전 시작 때 개체별 Kind와 초기값을 줄 수 있다.
-  2) 입력 API(공격 판정은 T16c 이후이므로 호출자가 부른다): ApplyDamage(id, health, posture, tick), ReduceTension(id, amount, tick). 음수·NaN·없는 id·Active나 Groggy가 아닌 개체는 결과값으로 거부한다(예외 아님). Groggy 개체의 ReduceTension은 무시하고 거부로 돌려준다.
-  3) 전이: Health <= 0이면 Puppet은 Broken, Humanized는 Downed(인형화가 풀리고 쓰러짐 = 구출). Tension <= 0이면 Puppet은 Released(풀려남). Humanized는 Groggy가 되어 GroggyTicks(기본 60) 동안 행동하지 않고 이동하지 않으며, 끝나면 Tension = ReconnectTension(기본 0.5)으로 Active. Broken·Released·Downed는 행동 선택에서 빠지고, 다른 개체의 대상 고르기·예약·흩어지기 거리 계산에서도 빠진다. Downed는 그 교전에서 다시 연결되지 않는다(어떤 입력으로도 Active가 되지 않음). 모든 전이는 (tick, 개체, 이전 상태, 새 상태, 원인 사건)으로 기록한다.
+  2) 입력 API(공격 판정은 T16c 이후이므로 호출자가 부른다): ApplyDamage(id, health, posture, tick), ReduceTension(id, amount, tick). 음수·NaN·없는 id·Active나 Groggy가 아닌 개체는 결과값으로 거부한다(예외 아님). Groggy 개체의 ReduceTension은 거부한다(ApplyDamage는 받는다).
+  3) 전이: Health <= 0이면 Puppet은 Broken, Humanized는 Downed(인형화가 풀리고 쓰러짐 = 구출). Tension <= 0이면 Puppet은 Released(풀려남). Humanized는 Groggy가 되어 GroggyTicks(기본 60) 동안 행동을 고르지 않고 이동하지 않으며, 끝나면 Tension = ReconnectTension(기본 0.5)으로 Active. Broken·Released·Downed는 행동 선택에서 빠지고, 다른 개체의 대상 고르기·예약·흩어지기 거리 계산에서도 빠진다. Downed는 그 교전에서 다시 연결되지 않는다(어떤 입력으로도 Active가 되지 않음). 모든 상태 변화(입력과 전이)는 (tick, 개체, 종류, 이전 값, 새 값, 원인 입력)으로 사건 기록에 남긴다. 다음 run이 이 기록을 원인 표시에 쓴다.
   4) 몸: Posture < PostureStaggerThreshold(기본 30)이면 이동 속도 × PostureSlowScale(기본 0.5). Posture는 초당 PostureRecoverPerSecond(기본 10)씩 100까지 회복한다(tick 단위로 계산).
-  5) 장력과 행동 점수: 각 후보의 최종 점수 = Tension × (지금의 점수: 역할 가중치 × 의도 × 요소 × 개체 차이) + (1 - Tension) × 끌림 점수. 이번 run의 끌림은 새 행동 waver 하나다(ActionIds에 추가): 제자리에 멈춰 비틀거림, 이동 없음, 대상 없음, 끌림 점수 WaverPull(기본 1). 다른 후보의 끌림 점수는 0이다. waver의 배역 가중치는 모든 역할 0. 그래서 Tension = 1이면 지금(T15r)과 완전히 같고, 장력이 낮을수록 비틀거림이 이긴다. 결에 따른 끌림은 T16b에서 이 자리에 들어간다.
-  6) 조율 예산: 연출가는 매 tick 예산 TuneBudgetPerSecond(기본 0.2) / TicksPerSecond만큼 한 개체의 Tension을 올린다(1을 넘지 않음). 한 tick에 한 개체만 조이고, 그동안 다른 개체는 풀린 채 남는다. 대상은 Active이고 Tension < 1인 개체 중 DirectorProfile의 우선순위 규칙으로 고른다: OutOfPosition(교전 시작 때의 진형 자리에서 가장 먼 개체, 기본값 = 첫 연출가 '무대감독'), LowestTension(장력이 가장 낮은 개체), Attacking(지금 attack 중인 개체 우선, 없으면 LowestTension). 동점은 AgentId가 작은 쪽. 조인 대상과 양을 tick마다 조회할 수 있게 한다(Unity가 '실을 붙잡는 동작'을 그릴 수 있게).
-  6-1) 실 회수: 개체가 Broken이 되면 예산이 ReclaimBudgetPerString(기본 0.1)만큼, Downed가 되면 ReclaimBudgetPerString × HumanizedReclaimRatio(기본 0.5)만큼 늘어난다. Released는 늘지 않는다(실이 끊겼으므로). 늘어난 예산은 TuneBudgetPerSecond × TuneBudgetMaxScale(기본 2)을 넘지 않는다. 회수도 전이와 같이 (tick, 개체, 늘어난 양, 회수 후 예산)으로 기록한다.
-  7) 원인 기록: 선택된 행동이 waver이거나 그 역할의 기본 가중치가 0인 행동이면, 그 개체의 가장 최근 상태 변화 사건(ApplyDamage, ReduceTension, 전이)을 결정에 붙인다. 사건이 없으면 '의도'(블랙보드의 역할별 의도)를 원인으로 붙인다.
-  8) 표시용 노출: 개체별 상태(Kind, Health, Posture, Tension, Status), 최종 점수에서 배역 몫과 끌림 몫, 붙은 원인, 이번 tick의 조율 대상을 읽을 수 있게 한다(F1 오버레이용, Unity 연결은 다음에).
-  9) 시뮬레이션: src/Core.Sim의 --puppets에 --stress <none|tension|mixed> 옵션을 더한다. none = 지금과 같음. tension = 2초에 Attacker Tension -0.8, 4초에 Guard 둘 각각 -0.6. mixed = Healer를 Humanized로 두고 3초에 Healer Tension -1.0(그로기 → 재연결), 5초에 Attacker Health -100(Broken). 0.5초마다 출력에 개체별 Tension·Posture·Status, 조율 대상, 현재 예산을 더하고, 끝에 상태 전이 목록을 출력한다.
+  5) 표시용 노출: 개체별 상태(Kind, Health, Posture, Tension, Status)와 사건 기록을 읽을 수 있게 한다(F1 오버레이용, Unity 연결은 다음에).
   수치는 설정 타입에 두고 임의로 정한 값임을 표시한다.
-  테스트: (a) 회귀: Tension이 모두 1이고 입력이 없으면 기존 PuppetContract·PuppetBrain 테스트가 그대로 통과하고, 네 시나리오의 궤적이 T15r과 같다. (b) 전이 경계: Health 정확히 0 → Broken/Downed, 0.0001 → Active. Tension 정확히 0 → Released/Groggy. Groggy는 정확히 GroggyTicks tick 뒤 Active, Tension 0.5. Downed·Broken·Released 개체에 대한 입력은 거부. (c) 제외: Released·Broken·Downed 개체는 선택·대상·예약·흩어지기 계산에 나타나지 않는다. (d) 몸: Posture 29.9는 느려지고 30은 그대로. 회복량이 초당 10. (e) 점수: Tension 0.5에서 waver와 배역 행동의 점수가 식대로. Tension이 낮아질수록 waver 비율이 커진다(0.9, 0.5, 0.1 비교). (f) 조율: 한 tick 증가량이 예산 이하, 한 tick에 한 개체만. 세 우선순위 규칙이 각각 맞는 대상을 고르고 동점은 AgentId. (f-1) 실 회수: Broken 뒤 예산 +0.1, Downed 뒤 +0.05, Released 뒤 변화 없음. 여러 개체가 부서져도 예산이 기본의 2배를 넘지 않는다(정확히 2배에서 멈춤). 회수 뒤 남은 개체의 장력이 더 빨리 회복된다. (g) 원인 기록: waver가 선택되면 직전 ReduceTension 사건이 붙는다. (h) 금지 패턴: stress 세 경우 모두에서 진동, 군체 동기화, 겹치기가 통과한다(waver 중인 개체는 무반응 판정에서 빼고, 남은 Active 개체로 판정). (i) 결정론: 같은 시드와 입력이면 상태와 궤적이 같다. 규칙 코어 테스트는 계속 통과해야 한다.
-  마지막 메시지에 stress 세 경우의 상태 전이 표와, 각 경우의 금지 패턴 지표를 적는다."
+  테스트: (a) 회귀: 입력이 없으면 기존 PuppetContract·PuppetBrain 테스트가 그대로 통과한다. (b) 전이 경계: Health 정확히 0 → Broken/Downed, 0.0001 → Active. Tension 정확히 0 → Released/Groggy, 0.0001 → Active. Groggy는 정확히 GroggyTicks tick 뒤 Active, Tension 0.5. Groggy 중에는 행동을 고르지 않고 위치가 그대로다. (c) 거부: 음수·NaN·없는 id, Downed·Broken·Released 개체에 대한 입력, Groggy 개체의 ReduceTension. Downed 개체는 어떤 입력 순서로도 Active가 되지 않는다. (d) 제외: Released·Broken·Downed 개체는 다른 개체의 선택·대상·예약·흩어지기 계산에 나타나지 않는다(예: Healer가 Broken이면 intercept 대상이 없다). (e) 몸: Posture 29.9는 느려지고 30은 그대로. 회복량이 초당 10, 100에서 멈춘다. (f) 사건 기록: 입력 하나와 그로 인한 전이가 순서대로, 원인 입력과 함께 남는다. (g) 결정론: 같은 시드와 입력이면 상태와 궤적이 같다. 규칙 코어 테스트는 계속 통과해야 한다.
+  마지막 메시지에 상태 전이 표(상태, 조건, 다음 상태, Puppet과 Humanized의 차이)를 적는다."
   ```
-  리뷰 포인트: 회귀 테스트 (a)가 실제로 T15r 궤적과 비교하는지(같다고 주장만 하지 않는지). mixed에서 Attacker가 부서진 뒤 예산이 늘고, Healer 구출(Downed)이 아니라 그로기일 때는 예산이 늘지 않는지. `dotnet run --project src/Core.Sim -- --puppets approach --stress tension`과 `--stress mixed`로 장력이 떨어진 개체가 비틀거리다 연출가가 조이면 돌아오는지, 무대감독이 자리를 벗어난 개체부터 조이는지 확인한다. Unity 연결 전이므로 Play 확인은 없다.
+  리뷰 포인트: 행동 점수 계산(UtilitySelector, PuppetActions의 점수 부분)이 diff에 없는지. 제외 (d)가 대상·예약·흩어지기 세 곳을 모두 검사하는지. Downed가 되돌아올 길이 정말 없는지.
+
+- [ ] **T16a-2 실: 장력, 조율 예산, 실 회수 (Core)**
+  > T16a-1의 상태 위에 실을 올린다. **장력이 낮아지면 배역이 옅어지고 비틀거리며, 연출가가 한정된 예산으로 다시 조인다.** 비틀거림은 결이 들어가기 전의 임시 끌림이다(결은 T16b). T16a-1에서 이름이 바뀌었다면 명령의 이름도 맞춰 고친다.
+  ```powershell
+  jevcode run --tag feature "docs/ai-design.md의 '인형 상태' 중 실 장력의 점수 반영, 연출가의 조율 예산, 실 회수, 원인 기록을 src/Core에 구현한다. T16a-1의 개체 상태·입력 API·사건 기록을 쓴다. Unity 코드는 바꾸지 않는다. 공개 API는 유지하고, 새 기능은 추가로만 넣는다.
+  1) 장력과 행동 점수: 각 후보의 최종 점수 = Tension × (지금의 점수: 역할 가중치 × 의도 × 요소 × 개체 차이) + (1 - Tension) × 끌림 점수. 이번 run의 끌림은 새 행동 waver 하나다(ActionIds에 추가): 제자리에 멈춰 비틀거림, 이동 없음, 대상 없음, 끌림 점수 WaverPull(기본 1). 다른 후보의 끌림 점수는 0이다. waver의 배역 가중치는 모든 역할 0. 그래서 Tension = 1이면 지금(T15r)과 완전히 같고, 장력이 낮을수록 비틀거림이 이긴다. 결에 따른 끌림은 T16b에서 이 자리에 들어간다.
+  2) 조율 예산: 연출가는 매 tick 예산 TuneBudgetPerSecond(기본 0.2) / TicksPerSecond만큼 한 개체의 Tension을 올린다(1을 넘지 않음). 한 tick에 한 개체만 조이고, 그동안 다른 개체는 풀린 채 남는다. 대상은 Active이고 Tension < 1인 개체 중 DirectorProfile의 우선순위 규칙으로 고른다: OutOfPosition(교전 시작 때의 진형 자리에서 가장 먼 개체, 기본값 = 첫 연출가 '무대감독'), LowestTension(장력이 가장 낮은 개체), Attacking(지금 attack 중인 개체 우선, 없으면 LowestTension). 동점은 AgentId가 작은 쪽. 조인 대상과 양을 tick마다 조회할 수 있게 한다(Unity가 '실을 붙잡는 동작'을 그릴 수 있게).
+  3) 실 회수: 개체가 Broken이 되면 예산이 ReclaimBudgetPerString(기본 0.1)만큼, Downed가 되면 ReclaimBudgetPerString × HumanizedReclaimRatio(기본 0.5)만큼 늘어난다. Released는 늘지 않는다(실이 끊겼으므로). 늘어난 예산은 TuneBudgetPerSecond × TuneBudgetMaxScale(기본 2)을 넘지 않는다. 회수도 T16a-1의 사건 기록에 (tick, 개체, 늘어난 양, 회수 후 예산)으로 남긴다.
+  4) 원인 기록: 선택된 행동이 waver이거나 그 역할의 기본 가중치가 0인 행동이면, 그 개체의 가장 최근 상태 변화 사건(T16a-1의 사건 기록)을 결정에 붙인다. 사건이 없으면 '의도'(블랙보드의 역할별 의도)를 원인으로 붙인다.
+  5) 표시용 노출: 최종 점수에서 배역 몫과 끌림 몫, 붙은 원인, 이번 tick의 조율 대상과 현재 예산을 읽을 수 있게 한다.
+  6) 시뮬레이션: src/Core.Sim의 --puppets에 --stress <none|tension|mixed> 옵션을 더한다. none = 지금과 같음. tension = 2초에 Attacker Tension -0.8, 4초에 Guard 둘 각각 -0.6. mixed = Healer를 Humanized로 두고 3초에 Healer Tension -1.0(그로기 → 재연결), 5초에 Attacker Health -100(Broken). 0.5초마다 출력에 개체별 Tension·Posture·Status, 조율 대상, 현재 예산을 더하고, 끝에 사건 기록을 출력한다.
+  수치는 설정 타입에 두고 임의로 정한 값임을 표시한다.
+  테스트: (a) 회귀: Tension이 모두 1이고 입력이 없으면 --puppets 네 시나리오의 궤적(tick별 위치와 행동)이 이 run 이전과 같다. 이전 궤적을 테스트 안에 고정값으로 두지 말고, waver와 조율을 끈 설정으로 같은 시나리오를 돌린 결과와 비교한다. (b) 점수: Tension 0.5에서 waver와 배역 행동의 점수가 식대로. Tension이 낮아질수록 waver 비율이 커진다(0.9, 0.5, 0.1 비교). (c) 조율: 한 tick 증가량이 예산 이하, 한 tick에 한 개체만. 세 우선순위 규칙이 각각 맞는 대상을 고르고 동점은 AgentId. (d) 실 회수: Broken 뒤 예산 +0.1, Downed 뒤 +0.05, Released 뒤 변화 없음, Groggy는 변화 없음. 여러 개체가 부서져도 예산이 기본의 2배에서 정확히 멈춘다. 회수 뒤 남은 개체의 장력이 더 빨리 회복된다. (e) 원인 기록: waver가 선택되면 직전 ReduceTension 사건이 붙는다. (f) 금지 패턴: stress 세 경우 모두에서 진동, 군체 동기화, 겹치기가 통과한다. waver 중인 개체는 무반응 판정에서 빼고, 남은 Active 개체로 판정한다. (g) 결정론: 같은 시드와 입력이면 상태, 예산, 궤적이 같다. 규칙 코어 테스트는 계속 통과해야 한다.
+  마지막 메시지에 stress 세 경우의 사건 기록 요약(전이와 회수)과 각 경우의 금지 패턴 지표를 표로 적는다."
+  ```
+  리뷰 포인트: 회귀 (a)가 실제로 두 설정의 궤적을 비교하는지(같다고 주장만 하지 않는지). `dotnet run --project src/Core.Sim -- --puppets approach --stress tension`과 `--stress mixed`로 장력이 떨어진 개체가 비틀거리다 연출가가 조이면 돌아오는지, 무대감독이 자리를 벗어난 개체부터 조이는지, Attacker가 부서진 뒤 예산이 늘고 Healer 그로기 때는 늘지 않는지 확인한다. Unity 연결 전이므로 Play 확인은 없다.
+
+- [ ] **T17 대응을 두 층으로 (Core, 연출가)**
+  > `docs/ai-design.md` "대응: 무대 구성과 행동 의도". T15r Play에서 호위와 돌격이 교전마다 번갈아 나온 원인(대응을 하나만 고름)을 고친다. 무대 구성은 하나, 행동 의도는 섞고, 개인 위협은 대응과 독립적으로 반영한다. 원정 사이 기억(개인 일부 유지, 파티 초기화)도 여기서. T16a-2 뒤, T16b 전에 한다. **명령은 T16a-2를 수락한 뒤에 쓴다**(T16a-2가 PuppetActions의 점수 식을 바꾸므로, 막아서기 기본값을 바꾸는 부분을 그 결과에 맞춰 쓴다).
 
 ## 참고
 
