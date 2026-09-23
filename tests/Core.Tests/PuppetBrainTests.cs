@@ -172,6 +172,70 @@ public sealed class PuppetBrainTests
         Assert.Equal(ActionIds.Approach, world.Get(agent.Id).Value.CurrentAction);
     }
 
+    [Fact]
+    public void StationaryAttackFacesHumanMovingBehindOnNextTick()
+    {
+        var world = new World();
+        Add(world, 1, new Vec2(0, 1), Side.Players);
+        Add(world, 10, new Vec2(0, 0));
+        var brain = Brain(world);
+        Run(brain, 0, 1);
+        var before = world.Get(new AgentId(10)).Value;
+        Assert.Equal(ActionIds.Attack, before.CurrentAction);
+        Assert.Equal(new Vec2(0, 1), before.Direction);
+
+        var player = new Vec2(0.6, -0.8);
+        Assert.True(world.UpdatePosition(new AgentId(1), player, new Vec2(0, 1)).Success);
+        Run(brain, 1, 1);
+        var after = world.Get(before.Id).Value;
+        Assert.Equal(ActionIds.Attack, after.CurrentAction);
+        Assert.Equal(new AgentId(1), after.Target);
+        Assert.Equal(before.Position, after.Position);
+        // Facing must update even between action reevaluations.
+        Assert.False(brain.GetDecision(after.Id).Value.Selection.Reevaluated);
+        var distance = Distance(after.Position, player);
+        var dot = (after.Direction.X * (player.X - after.Position.X)
+            + after.Direction.Z * (player.Z - after.Position.Z)) / distance;
+        Assert.True(dot >= 0.99, $"Facing dot product: {dot}");
+    }
+
+    [Fact]
+    public void MovingAwayFromTargetFacesMovementInsteadOfTarget()
+    {
+        var world = new World();
+        Add(world, 1, new Vec2(0, 0), Side.Players);
+        Add(world, 10, new Vec2(1, 1), role: TargetRole.Healer);
+        var brain = Brain(world);
+        var before = world.Get(new AgentId(10)).Value;
+        Run(brain, 0, 1);
+        var after = world.Get(before.Id).Value;
+        Assert.Equal(ActionIds.KeepDistance, after.CurrentAction);
+        Assert.Equal(new AgentId(1), after.Target);
+        var distance = Distance(before.Position, after.Position);
+        Assert.True(distance > 0);
+        Assert.Equal((after.Position.X - before.Position.X) / distance, after.Direction.X, 12);
+        Assert.Equal((after.Position.Z - before.Position.Z) / distance, after.Direction.Z, 12);
+        Assert.True(after.Direction.X * -after.Position.X + after.Direction.Z * -after.Position.Z < 0);
+    }
+
+    [Fact]
+    public void StationaryPuppetWithoutTargetPreservesPreviousDirection()
+    {
+        var world = new World();
+        Add(world, 10, new Vec2(0, 0));
+        var direction = new Vec2(-0.6, -0.8);
+        Assert.True(world.UpdatePosition(new AgentId(10), new Vec2(0, 0), direction).Success);
+        var brain = Brain(world);
+        for (int tick = 0; tick < 30; tick++)
+        {
+            Run(brain, tick, 1);
+            var agent = world.Get(new AgentId(10)).Value;
+            Assert.Null(brain.GetDecision(agent.Id).Value.Target);
+            Assert.Equal(new Vec2(0, 0), agent.Position);
+            Assert.Equal(direction, agent.Direction);
+        }
+    }
+
     [Theory]
     [InlineData(false, true, TargetRole.Guard)]
     [InlineData(true, false, TargetRole.Guard)]

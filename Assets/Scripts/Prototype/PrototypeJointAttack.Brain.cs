@@ -10,7 +10,6 @@ namespace BehindTheCurtain.Prototype
         private PuppetBrain brain;
         private Vector3[] previousPositions;
         private Quaternion[] previousRotations;
-        private string[] previousActions;
         private long[] attackReadyTicks;
         private LineRenderer[] brainLines;
         private bool debugOverlay;
@@ -37,7 +36,6 @@ namespace BehindTheCurtain.Prototype
             if (!added.Success) return BrainFailure(added.Failure);
             previousPositions = (Vector3[])restPositions.Clone();
             previousRotations = (Quaternion[])restRotations.Clone();
-            previousActions = new string[puppets.Length];
             attackReadyTicks = new long[puppets.Length];
             for (var i = 0; i < puppets.Length; i++)
             {
@@ -83,7 +81,7 @@ namespace BehindTheCurtain.Prototype
                 previousRotations[i] = restRotations[i];
                 restPositions[i] = new Vector3((float)agent.Position.X, restPositions[i].y, (float)agent.Position.Z);
                 restRotations[i] = Quaternion.LookRotation(new Vector3((float)agent.Direction.X, 0f, (float)agent.Direction.Z));
-                if (agent.CurrentAction == ActionIds.Attack && previousActions[i] != ActionIds.Attack
+                if (agent.CurrentAction == ActionIds.Attack
                     && tick >= attackReadyTicks[i] && agent.Target.HasValue)
                 {
                     var target = world.Get(agent.Target.Value);
@@ -93,7 +91,6 @@ namespace BehindTheCurtain.Prototype
                         attackReadyTicks[i] = tick + settings.AttackCooldownTicks;
                     }
                 }
-                previousActions[i] = agent.CurrentAction;
                 // Catch-up tick raycasts must use the current World pose.
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];

@@ -91,8 +91,14 @@ namespace BehindTheCurtain.Core
                 var movementContext = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
                 next = Clamp(puppets.Find(p => p.Id.Equals(agent.Id))!.Actions
                     .ConstrainMovement(movementContext, decision.Selection.ActionId, next));
-                var moved = world.UpdatePosition(agent.Id, next,
-                    PuppetActions.Direction(agent.Position, next, agent.Direction));
+                var direction = PuppetActions.Direction(agent.Position, next, agent.Direction);
+                if (agent.Position.X == next.X && agent.Position.Z == next.Z && decision.Target.HasValue)
+                {
+                    var target = world.Get(decision.Target.Value);
+                    if (target.Success)
+                        direction = PuppetActions.Direction(next, target.Value.Position, agent.Direction);
+                }
+                var moved = world.UpdatePosition(agent.Id, next, direction);
                 if (!moved.Success) return moved.Failure;
                 var acted = world.UpdateAction(agent.Id, decision.Selection.ActionId, decision.Target);
                 if (!acted.Success) return acted.Failure;
