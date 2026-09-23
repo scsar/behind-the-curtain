@@ -326,7 +326,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   리뷰 포인트: **오버레이를 끄고 먼저 해 본다.** 힐러만 때린 다음 교전에서 Guard가 나를 따라다니며 힐러 앞을 막는지 **행동만 보고** 알아챌 수 있는지. 그다음 F1을 켜서 실제 판단(intercept, 점수)과 맞는지 확인한다. 버릇을 바꾼 뒤 한두 교전 동안 계속 의심하는 게 재미있는지, 답답한지. 바닥 경고가 "인형이 나를 친다"로 읽히는지.
 
-- [x] **T15r 역할별 행동 계약과 금지 패턴 테스트 (T15 수정)** — `b0fd82c`. 방해는 동작(근접·광역으로 치면 힐러 외 전원이 따라옴). 플레이 결과: 인형들을 지나쳐 가면 내 뒤에서 멀뚱히 서 있음, 힐러를 원거리로 쳐도 같은 교전에서는 Guard가 막지 않고 나를 쫓음, 맞은 힐러는 나를 쫓는 Guard 뒤에 붙어 같이 끌려옴 → 인형이 역할에 갇힘. 인형 상태 층을 설계에 추가(`docs/ai-design.md` "인형 상태"), T16에 합친다. "뒤에서 대기"는 원인 확인 뒤 별도 fix
+- [x] **T15r 역할별 행동 계약과 금지 패턴 테스트 (T15 수정)** — `b0fd82c`. 방해는 동작(근접·광역으로 치면 힐러 외 전원이 따라옴). 플레이 결과: 인형들을 지나쳐 가면 내 뒤에서 멀뚱히 서 있음, 힐러를 원거리로 쳐도 같은 교전에서는 Guard가 막지 않고 나를 쫓음, 맞은 힐러는 나를 쫓는 Guard 뒤에 붙어 같이 끌려옴 → 인형이 역할에 갇힘. 인형 상태 층을 설계에 추가(`docs/ai-design.md` "인형 상태"), T16에 합친다. "뒤에서 대기"는 원인 확인 결과 U5f와 T16b로 나눠 고친다(`docs/ai-design.md` "인형 상태")
   > `docs/ai-design.md`의 "행동 계약". T15 명세가 요소 하나씩만 정해서 생긴 도망·군체·독점을 고친다. Core만 바꾸고 U5의 Unity 코드는 그대로 쓴다. 끝나면 시뮬레이션 궤적을 먼저 확인하고 Play한다.
   ```powershell
   jevcode run --tag fix "docs/ai-design.md의 '행동 계약'(역할별 계약, 금지 패턴)을 src/Core의 인형 행동(PuppetActions, PuppetBrain, PuppetSettings)에 적용한다. Unity 코드는 바꾸지 않는다. 공개 API(PuppetBrain.GetDecision, World 등)는 U5가 쓰므로 유지한다.
@@ -342,6 +342,40 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   테스트: docs/ai-design.md '금지 패턴' 표의 기준을 위 네 시나리오로 검사한다. '항상 금지'(진동, 군체 동기화, 겹치기, 무반응)는 기본 대응과 아래 사용자 정의 대응 모두에서, '기본값에서만 금지'(이유 없는 도망, 막아서기 과다)는 기본 대응에서 검사한다. 역할별 의도 확인: 테스트 전용 대응으로 Attacker의 keepDistance를 켜면 Attacker가 거리 범위를 일관되게 유지하며 물러나고(진동 없음), 켜지 않으면 Attacker는 물러나지 않는다. 추가로 같은 상황에서 Guard·Attacker·Healer가 서로 다른 행동을 고르는지, 같은 시드면 궤적이 같은지. 기존 T15 테스트 중 approach가 가까워지면 약해지는 것을 전제로 한 것은 새 계약에 맞게 고치고, 무엇을 왜 바꿨는지 기존 동작 변경 섹션에 적는다. 규칙 코어 테스트는 계속 통과해야 한다. 마지막 메시지에 네 시나리오의 금지 패턴 지표를 표로 적는다."
   ```
   리뷰 포인트: 마지막 메시지의 지표 표가 모든 기준을 통과하는지. 리뷰 뒤 `dotnet run --project src/Core.Sim -- --puppets approach`(나머지 셋도)로 궤적을 직접 확인한다(사람이 하거나 Claude에게 요청). 이상이 없을 때만 Play로 **재미**를 본다: 다가가면 Guard가 맞서고 Attacker가 파고드는지, Healer만 뒤로 빠지는지, 힐러를 노리던 나를 Guard 한 명이 따라다니는지.
+
+## 5단계: 인형 상태 (`docs/ai-design.md` "인형 상태")
+
+> 핵심 논지는 다양성이다. 인형의 행동을 배역 하나가 아니라 몸·결·실·상황·연출가의 겹침으로 만든다. 한 run이 너무 무거워지지 않게(T15r 한 번에 Pro 5시간 한도의 33%) T16을 넷으로 나눴다. T16b 명령은 T16a를 Play한 뒤에 쓴다.
+
+- [ ] **U5f 인형 공격이 계속 나가고, 인형이 대상을 본다 (U5 수정)**
+  > T15r Play의 "지나치면 뒤에서 멀뚱히 서 있음" 중 두 원인. 작은 수정이다. 세 번째 원인(Guard가 자리로 돌아감)은 T16b에서 고친다.
+  ```powershell
+  jevcode run --tag fix "인형 공격이 한 번만 나가고 멈추는 문제와 인형이 대상을 보지 않는 문제를 고친다. 다른 행동 선택 규칙은 바꾸지 않는다.
+  1) Unity(Assets/Scripts/Prototype/PrototypeJointAttack.Brain.cs): 지금은 인형의 CurrentAction이 attack으로 '바뀌는 tick'에만 바닥 경고(CreateSlam)를 만든다. 그래서 사람이 공격 거리 안에 머무르면 첫 공격 뒤로는 서 있기만 하고, attack에 들어갈 때 쿨다운 중이었으면 한 번도 치지 않는다. 바꾼다: CurrentAction이 attack이고 대상이 있고 tick >= attackReadyTicks인 동안 매번 경고를 만든다. 쿨다운은 지금처럼 AttackCooldownTicks(기본 90)다.
+  2) Core(src/Core/PuppetBrain.cs): 지금은 방향을 이동 방향으로만 정하므로, 제자리 행동(attack 등) 중에 사람이 지나쳐 가면 인형이 등을 보인 채 서 있다. 바꾼다: 그 tick에 이동하지 않았고 결정에 대상(Target)이 있으면 방향을 대상 쪽으로 돌린다(즉시 회전, 회전 속도는 두지 않는다). 이동한 tick은 지금처럼 이동 방향. 대상이 없고 이동도 없으면 방향을 유지한다.
+  테스트(Core, tests/Core.Tests): (a) 공격 거리 안의 사람이 인형 뒤쪽으로 지나가면 다음 tick에 인형 방향과 '인형→사람' 단위 벡터의 내적이 0.99 이상. (b) 이동한 tick의 방향은 이동 방향. (c) 대상 없음·이동 없음이면 방향이 이전과 같다. (d) 같은 시드와 입력이면 방향까지 같은 궤적. 기존 PuppetContract 테스트(금지 패턴)는 계속 통과해야 한다. 규칙 코어 테스트는 계속 통과해야 한다.
+  기존 동작 변경 섹션에 경고 발생 조건 변경(바뀌는 순간 → attack인 동안 쿨다운마다)과 방향 규칙 변경을 적는다. 마지막 메시지에 Play에서 확인할 항목을 적는다."
+  ```
+  리뷰 포인트: Play에서 인형들 사이를 지나 뒤쪽 2m 안에 가만히 서 본다. 3초마다 바닥 경고가 계속 떨어지는지, 인형들이 나를 향해 도는지. 공격이 너무 잦아 답답하면 AttackCooldownTicks만 조정한다(코드 수정 없이).
+
+- [ ] **T16a 개체 상태와 실 (Core)**
+  > `docs/ai-design.md` "인형 상태"의 몸·실 장력·적의 두 종류·조율 예산. 결과 상황은 T16b다. 이번에는 **장력이 낮아지면 배역이 옅어지고 비틀거린다**까지만 만든다. 결이 들어가기 전의 임시 끌림이다.
+  ```powershell
+  jevcode run --tag feature "docs/ai-design.md의 '인형 상태' 중 몸, 실 장력, 적의 두 종류(인형 / 인형화된 사람), 연출가의 조율 예산을 src/Core에 구현한다. 결과 상황은 다음 run(T16b)에서 한다. Unity 코드는 바꾸지 않는다. 공개 API(PuppetBrain.GetDecision, World 등)는 U5가 쓰므로 유지하고, 새 기능은 추가로만 넣는다.
+  1) 개체 상태: 인형 편 개체마다 상태를 둔다. Kind(Puppet | Humanized, 기본 Puppet), Health(기본 100), Posture(기본 100), Tension(0~1, 시작 1), Status(Active | Groggy | Released | Broken | Downed). 수치 항목은 식별자 → 값의 모음으로 늘릴 수 있게 한다(관찰 경향과 같은 방식). 호출자가 교전 시작 때 개체별 Kind와 초기값을 줄 수 있다.
+  2) 입력 API(공격 판정은 T16c 이후이므로 호출자가 부른다): ApplyDamage(id, health, posture, tick), ReduceTension(id, amount, tick). 음수·NaN·없는 id·Active나 Groggy가 아닌 개체는 결과값으로 거부한다(예외 아님). Groggy 개체의 ReduceTension은 무시하고 거부로 돌려준다.
+  3) 전이: Health <= 0이면 Puppet은 Broken, Humanized는 Downed(인형화가 풀리고 쓰러짐 = 구출). Tension <= 0이면 Puppet은 Released(풀려남). Humanized는 Groggy가 되어 GroggyTicks(기본 60) 동안 행동하지 않고 이동하지 않으며, 끝나면 Tension = ReconnectTension(기본 0.5)으로 Active. Broken·Released·Downed는 행동 선택에서 빠지고, 다른 개체의 대상 고르기·예약·흩어지기 거리 계산에서도 빠진다. Downed는 그 교전에서 다시 연결되지 않는다(어떤 입력으로도 Active가 되지 않음). 모든 전이는 (tick, 개체, 이전 상태, 새 상태, 원인 사건)으로 기록한다.
+  4) 몸: Posture < PostureStaggerThreshold(기본 30)이면 이동 속도 × PostureSlowScale(기본 0.5). Posture는 초당 PostureRecoverPerSecond(기본 10)씩 100까지 회복한다(tick 단위로 계산).
+  5) 장력과 행동 점수: 각 후보의 최종 점수 = Tension × (지금의 점수: 역할 가중치 × 의도 × 요소 × 개체 차이) + (1 - Tension) × 끌림 점수. 이번 run의 끌림은 새 행동 waver 하나다(ActionIds에 추가): 제자리에 멈춰 비틀거림, 이동 없음, 대상 없음, 끌림 점수 WaverPull(기본 1). 다른 후보의 끌림 점수는 0이다. waver의 배역 가중치는 모든 역할 0. 그래서 Tension = 1이면 지금(T15r)과 완전히 같고, 장력이 낮을수록 비틀거림이 이긴다. 결에 따른 끌림은 T16b에서 이 자리에 들어간다.
+  6) 조율 예산: 연출가는 매 tick 예산 TuneBudgetPerSecond(기본 0.2) / TicksPerSecond만큼 한 개체의 Tension을 올린다(1을 넘지 않음). 한 tick에 한 개체만 조이고, 그동안 다른 개체는 풀린 채 남는다. 대상은 Active이고 Tension < 1인 개체 중 DirectorProfile의 우선순위 규칙으로 고른다: OutOfPosition(교전 시작 때의 진형 자리에서 가장 먼 개체, 기본값 = 첫 연출가 '무대감독'), LowestTension(장력이 가장 낮은 개체), Attacking(지금 attack 중인 개체 우선, 없으면 LowestTension). 동점은 AgentId가 작은 쪽. 조인 대상과 양을 tick마다 조회할 수 있게 한다(Unity가 '실을 붙잡는 동작'을 그릴 수 있게).
+  7) 원인 기록: 선택된 행동이 waver이거나 그 역할의 기본 가중치가 0인 행동이면, 그 개체의 가장 최근 상태 변화 사건(ApplyDamage, ReduceTension, 전이)을 결정에 붙인다. 사건이 없으면 '의도'(블랙보드의 역할별 의도)를 원인으로 붙인다.
+  8) 표시용 노출: 개체별 상태(Kind, Health, Posture, Tension, Status), 최종 점수에서 배역 몫과 끌림 몫, 붙은 원인, 이번 tick의 조율 대상을 읽을 수 있게 한다(F1 오버레이용, Unity 연결은 다음에).
+  9) 시뮬레이션: src/Core.Sim의 --puppets에 --stress <none|tension|mixed> 옵션을 더한다. none = 지금과 같음. tension = 2초에 Attacker Tension -0.8, 4초에 Guard 둘 각각 -0.6. mixed = Healer를 Humanized로 두고 3초에 Healer Tension -1.0(그로기 → 재연결), 5초에 Attacker Health -100(Broken). 0.5초마다 출력에 개체별 Tension·Posture·Status, 조율 대상을 더하고, 끝에 상태 전이 목록을 출력한다.
+  수치는 설정 타입에 두고 임의로 정한 값임을 표시한다.
+  테스트: (a) 회귀: Tension이 모두 1이고 입력이 없으면 기존 PuppetContract·PuppetBrain 테스트가 그대로 통과하고, 네 시나리오의 궤적이 T15r과 같다. (b) 전이 경계: Health 정확히 0 → Broken/Downed, 0.0001 → Active. Tension 정확히 0 → Released/Groggy. Groggy는 정확히 GroggyTicks tick 뒤 Active, Tension 0.5. Downed·Broken·Released 개체에 대한 입력은 거부. (c) 제외: Released·Broken·Downed 개체는 선택·대상·예약·흩어지기 계산에 나타나지 않는다. (d) 몸: Posture 29.9는 느려지고 30은 그대로. 회복량이 초당 10. (e) 점수: Tension 0.5에서 waver와 배역 행동의 점수가 식대로. Tension이 낮아질수록 waver 비율이 커진다(0.9, 0.5, 0.1 비교). (f) 조율: 한 tick 증가량이 예산 이하, 한 tick에 한 개체만. 세 우선순위 규칙이 각각 맞는 대상을 고르고 동점은 AgentId. (g) 원인 기록: waver가 선택되면 직전 ReduceTension 사건이 붙는다. (h) 금지 패턴: stress 세 경우 모두에서 진동, 군체 동기화, 겹치기가 통과한다(waver 중인 개체는 무반응 판정에서 빼고, 남은 Active 개체로 판정). (i) 결정론: 같은 시드와 입력이면 상태와 궤적이 같다. 규칙 코어 테스트는 계속 통과해야 한다.
+  마지막 메시지에 stress 세 경우의 상태 전이 표와, 각 경우의 금지 패턴 지표를 적는다."
+  ```
+  리뷰 포인트: 회귀 테스트 (a)가 실제로 T15r 궤적과 비교하는지(같다고 주장만 하지 않는지). `dotnet run --project src/Core.Sim -- --puppets approach --stress tension`과 `--stress mixed`로 장력이 떨어진 개체가 비틀거리다 연출가가 조이면 돌아오는지, 무대감독이 자리를 벗어난 개체부터 조이는지 확인한다. Unity 연결 전이므로 Play 확인은 없다.
 
 ## 참고
 
