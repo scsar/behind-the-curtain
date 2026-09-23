@@ -19,9 +19,17 @@ Unity 기반 1인 개발 프로젝트. 클라이언트·서버 포트폴리오�
 
 - [세계관 및 핵심 콘셉트](docs/worldbuilding.md)
 - [기획 결정 및 다음 작업](docs/planning.md)
+- [인형 AI와 아군 봇 설계](docs/ai-design.md)
+- [다음 실행 목록](docs/next-runs.md) — 에이전트에게 줄 명령과 리뷰 포인트
+- [에이전트 작업 규칙](AGENTS.md)
+- **전체 개요(왜 하는가, 목적, 지금까지의 효과, 앞으로):** `C:\Github\jevcode\docs\overview.md` ([scsar/jevCode](https://github.com/scsar/jevCode/blob/main/docs/overview.md))
+
+## 개발 방식
+
+코드는 격리된 실행기 **jevcode**(`C:\Github\jevcode`)로 에이전트에게 맡기고, 사람이 리뷰해 수락·커밋한다. 실행 기록은 판단 모델 평가에도 쓰인다. 흐름과 규칙은 위의 전체 개요와 `docs/next-runs.md`에 있다.
 
 ## 개발 상태
 
-현재는 기획 문서 저장소다. Unity 프로젝트와 서버 코드는 아직 생성하지 않았다. Unity 버전, 네트워크 기술, 최종 파티 정원, 개발 일정은 미정이다.
+규칙 코어(`src/Core`, 테스트 300개 이상)와 Unity 쿼터뷰 프로토타입(`Assets/Scripts/Prototype`)이 동작한다. 카운터, 압박, 연출가의 적응, 인형 AI까지 화면에서 확인했다. 서버 코드, 최종 파티 정원(4~5인 목표), 네트워크 기술, 개발 일정은 미정이다.
 
 게임 제목과 영문 코드명은 작업용 가명이다.
