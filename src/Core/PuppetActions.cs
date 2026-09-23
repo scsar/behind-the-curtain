@@ -8,37 +8,63 @@ namespace BehindTheCurtain.Core
     {
         private readonly PuppetSettings settings;
         private readonly Vec2 formation;
+        private AgentId? protectedHealer;
         internal PuppetActions(PuppetSettings settings, Vec2 formation)
         { this.settings = settings; this.formation = formation; }
 
-        internal IReadOnlyList<UtilityAction> Create() => new[] {
-            new UtilityAction(ActionIds.Approach, new[] {
-                Factor("targetDistance", c => {
-                    var target = ApproachTarget(c);
-                    return target == null ? 0 : Far(Distance(c.Agent.Position, target.Position));
-                }) }, settings.ApproachWeight),
-            new UtilityAction(ActionIds.Intercept, new[] {
-                Factor("healerThreatProximity", c => {
-                    var threat = Threat(c, TargetFactIds.HealerThreat);
-                    var healer = Healer(c);
-                    return c.Agent.Role != TargetRole.Guard || threat == null || healer == null ? 0
-                        : 1 - Far(Distance(healer.Position, threat.Position));
-                }),
-                Factor("interceptDisplacement", c => settings.InterceptPositionFloor
-                    + (1 - settings.InterceptPositionFloor)
-                    * Far(Distance(c.Agent.Position, Resolve(c, ActionIds.Intercept).Goal)))
-            }, settings.InterceptWeight),
-            new UtilityAction(ActionIds.Spread, new[] {
-                Factor("nearestPuppetProximity", c => {
-                    var nearest = Nearest(c, a => a.Side == Side.Puppets && !a.Id.Equals(c.Agent.Id));
-                    return nearest == null ? 0 : AiNumber.Clamp(1
-                        - Distance(c.Agent.Position, nearest.Position) / settings.SpreadDistance);
-                }) }, settings.SpreadWeight),
-            new UtilityAction(ActionIds.Hold, Array.Empty<UtilityConsideration>(), settings.HoldWeight),
-            new UtilityAction(ActionIds.Attack, new[] {
-                Factor("humanInRange", c => AttackTarget(c) == null ? 0 : 1)
-            }, settings.AttackWeight)
-        };
+        internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random)
+        {
+            var result = new List<UtilityAction>();
+            foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
+                ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance })
+            {
+                double weight = settings.GetRoleWeight(role, id);
+                double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
+                // A role-specific intention explicitly enables a default-zero candidate at unit weight.
+                result.Add(new UtilityAction(id, new[] { Factor("contract", c =>
+                    (weight > 0 || c.Blackboard.HasIntention(role + ":" + id) ? 1 : 0) * Suitability(c, id)) },
+                    (weight > 0 ? weight : 1) * jitter));
+            }
+            return result;
+        }
+
+        private double Suitability(UtilityContext c, string id)
+        {
+            var human = Nearest(c, Human);
+            double distance = human == null ? double.PositiveInfinity : Distance(c.Agent.Position, human.Position);
+            if (id == ActionIds.Approach)
+            {
+                var target = ApproachTarget(c);
+                return target != null && Distance(c.Agent.Position, target.Position) > settings.AttackRange ? 1 : 0;
+            }
+            if (id == ActionIds.Attack) return AttackTarget(c) == null ? 0 : 1;
+            if (id == ActionIds.Hold) return distance > settings.ThreatRadius ? 1 : 0;
+            if (id == ActionIds.KeepDistance) return human == null ? 0 :
+                distance <= settings.KeepMax || c.Agent.CurrentAction == id
+                    || c.Blackboard.HasIntention(c.Agent.Role + ":" + id) ? 1 : 0;
+            if (id == ActionIds.Intercept)
+            {
+                if (AttackTarget(c) != null) return 0;
+                var healer = Healer(c);
+                if (healer == null || healer.Id.Equals(c.Agent.Id) || Threat(c, TargetFactIds.HealerThreat) == null) return 0;
+                var reservation = c.Blackboard.GetReservation("intercept:" + healer.Id.Value, c.Tick);
+                if (reservation.Success && !reservation.Value.Owner.Equals(c.Agent.Id)) return 0;
+                var tactic = c.Blackboard.GetFact<TacticId>("tactic");
+                return tactic.Success && tactic.Value == TacticId.GuardHealer ? 1 : settings.PassiveInterceptScale;
+            }
+            var nearest = Nearest(c, a => a.Side == Side.Puppets && !a.Id.Equals(c.Agent.Id));
+            return nearest == null ? 0 : AiNumber.Clamp(1 - Distance(c.Agent.Position, nearest.Position) / settings.SpreadDistance);
+        }
+
+        internal void Reserve(UtilityContext c, string? action)
+        {
+            if (action != ActionIds.Intercept) { protectedHealer = null; return; }
+            var healer = Healer(c);
+            if (healer == null) return;
+            var reserved = c.Blackboard.Reserve("intercept:" + healer.Id.Value, c.Agent.Id,
+                c.Tick == long.MaxValue ? c.Tick : c.Tick + 1, c.Tick);
+            if (reserved.Success) protectedHealer = healer.Id;
+        }
 
         private static UtilityConsideration Factor(string id, Func<UtilityContext, double> input) =>
             new UtilityConsideration(id, input, new ResponseCurve(ResponseCurveKind.Linear, 1, 0));
@@ -48,7 +74,7 @@ namespace BehindTheCurtain.Core
             if (action == ActionIds.Approach)
             {
                 var target = ApproachTarget(c);
-                return (target?.Position ?? c.Agent.Position, target?.Id);
+                return (target == null ? c.Agent.Position : MoveTowards(target.Position, c.Agent.Position, settings.AttackRange - settings.AttackArrivalMargin), target?.Id);
             }
             if (action == ActionIds.Attack) return (c.Agent.Position, AttackTarget(c)?.Id);
             if (action == ActionIds.Hold) return (formation, null);
@@ -56,10 +82,29 @@ namespace BehindTheCurtain.Core
             {
                 var threat = Threat(c, TargetFactIds.HealerThreat);
                 var healer = Healer(c);
-                if (c.Agent.Role != TargetRole.Guard || threat == null || healer == null)
+                if (threat == null || healer == null)
                     return (c.Agent.Position, null);
                 // Short segments stop at the threat rather than extending behind it.
                 return (MoveTowards(healer.Position, threat.Position, settings.InterceptDistance), threat.Id);
+            }
+            if (action == ActionIds.KeepDistance)
+            {
+                var human = Nearest(c, Human);
+                if (human == null) return (c.Agent.Position, null);
+                double distance = Distance(c.Agent.Position, human.Position);
+                var guard = Nearest(c, a => a.Side == Side.Puppets && a.Role == TargetRole.Guard
+                    && !a.Id.Equals(c.Agent.Id));
+                var direction = Direction(human.Position, guard?.Position ?? c.Agent.Position, new Vec2(0, -1));
+                // Escape radially first; crossing the threat to reach a guard is never safe.
+                if (distance < settings.KeepMin)
+                    direction = Direction(human.Position, c.Agent.Position, new Vec2(0, -1));
+                if (guard == null && distance >= settings.KeepMin && distance <= settings.KeepMax)
+                    return (c.Agent.Position, human.Id);
+                double radius = distance < settings.KeepMin ? settings.KeepMin :
+                    Math.Max(settings.KeepMin, Math.Min(settings.KeepMax,
+                        guard == null ? settings.KeepMax : Distance(guard.Position, human.Position) + settings.GuardRearOffset));
+                return (new Vec2(human.Position.X + direction.X * radius,
+                    human.Position.Z + direction.Z * radius), human.Id);
             }
             if (action == ActionIds.Spread)
             {
@@ -85,7 +130,29 @@ namespace BehindTheCurtain.Core
             return (c.Agent.Position, null);
         }
 
-        private double Far(double distance) => distance / (settings.DistanceScale + distance);
+        internal Vec2 ConstrainMovement(UtilityContext c, string? action, Vec2 next)
+        {
+            if (action == ActionIds.Spread) return next;
+            var human = Nearest(c, Human);
+            if (human == null) return next;
+            double before = Distance(c.Agent.Position, human.Position);
+            if (action == ActionIds.KeepDistance)
+            {
+                // Follow the guard around the safe band rather than cutting through its interior.
+                if (before >= settings.KeepMin && Distance(next, human.Position) < settings.KeepMin)
+                {
+                    var direction = Direction(human.Position, next, new Vec2(0, -1));
+                    return new Vec2(human.Position.X + direction.X * settings.KeepMin,
+                        human.Position.Z + direction.Z * settings.KeepMin);
+                }
+                return next;
+            }
+            // Hold/intercept destinations can move behind us. Never retreat from a nearby human
+            // unless the selected action explicitly calls for it.
+            return before <= settings.ThreatRadius && Distance(next, human.Position) > before
+                ? c.Agent.Position : next;
+        }
+
         private static bool Human(AgentState a) => a.Side == Side.Players && a.IsHuman;
         private static AgentState? Threat(UtilityContext c, string key)
         {
@@ -94,16 +161,24 @@ namespace BehindTheCurtain.Core
             var found = c.World.Get(fact.Value);
             return found.Success && Human(found.Value) ? found.Value : null;
         }
-        private static AgentState? ApproachTarget(UtilityContext c) =>
-            Threat(c, TargetFactIds.RangedThreat) ?? Nearest(c, Human);
+        private static AgentState? ApproachTarget(UtilityContext c)
+        {
+            var tactic = c.Blackboard.GetFact<TacticId>("tactic");
+            return (tactic.Success && tactic.Value == TacticId.ShieldAdvance
+                ? Threat(c, TargetFactIds.RangedThreat) : null) ?? Nearest(c, Human);
+        }
         private AgentState? AttackTarget(UtilityContext c)
         {
             var target = Nearest(c, Human);
             return target != null && Distance(c.Agent.Position, target.Position) <= settings.AttackRange
                 ? target : null;
         }
-        private static AgentState? Healer(UtilityContext c) =>
-            Nearest(c, a => a.Side == Side.Puppets && a.Role == TargetRole.Healer);
+        private AgentState? Healer(UtilityContext c)
+        {
+            // A running intercept keeps its reserved healer even if healers exchange proximity.
+            if (protectedHealer.HasValue) return c.World.Get(protectedHealer.Value).Value;
+            return Nearest(c, a => a.Side == Side.Puppets && a.Role == TargetRole.Healer);
+        }
         private static AgentState? Nearest(UtilityContext c, Func<AgentState, bool> predicate)
         {
             AgentState? nearest = null;

@@ -120,7 +120,7 @@ namespace BehindTheCurtain.Core
                     values.Add(new ConsiderationScore(c.Id, input, curved.Value));
                     product *= curved.Value;
                 }
-                double intention = board.GetIntention(action.Id).Value;
+                double intention = board.RoleIntention(agent.Role, action.Id);
                 double weighted = product == 0 || action.BaseWeight == 0 || intention == 0
                     ? 0 : product * action.BaseWeight * intention;
                 double bonus = weighted > 0 && action.Id == agent.CurrentAction ? settings.PersistenceBonus : 0;

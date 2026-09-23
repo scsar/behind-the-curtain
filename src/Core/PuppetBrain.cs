@@ -34,6 +34,7 @@ namespace BehindTheCurtain.Core
         private readonly List<Puppet> puppets;
         private readonly Dictionary<AgentId, PuppetDecision> decisions = new Dictionary<AgentId, PuppetDecision>();
         private long? lastTick;
+        private long firstTick;
         private PuppetBrain(World world, PuppetSettings settings, List<Puppet> puppets)
         { this.world = world; this.settings = settings; this.puppets = puppets; }
 
@@ -43,11 +44,12 @@ namespace BehindTheCurtain.Core
             if (settings == null || !settings.IsValid || random == null)
                 return AiResult<PuppetBrain>.Fail(AiFailure.InvalidSettings);
             var puppets = new List<Puppet>();
+            ulong encounterSeed = (ulong)(random.NextDouble() * uint.MaxValue);
             foreach (var agent in world.GetAgents())
             {
                 if (agent.Side != Side.Puppets) continue;
                 var actions = new PuppetActions(settings, agent.Position);
-                var selector = UtilitySelector.Create(world, agent.Id, actions.Create(),
+                var selector = UtilitySelector.Create(world, agent.Id, actions.Create(agent.Role, new DeterministicRandom(encounterSeed ^ (ulong)agent.Id.Value)),
                     new UtilitySettings(1, settings.PersistenceBonus), random);
                 if (!selector.Success) return AiResult<PuppetBrain>.Fail(selector.Failure);
                 puppets.Add(new Puppet(agent.Id, actions, selector.Value));
@@ -63,13 +65,21 @@ namespace BehindTheCurtain.Core
         {
             if (lastTick.HasValue && (lastTick.Value == long.MaxValue || tick != lastTick.Value + 1))
                 return AiFailure.InvalidTick;
+            if (!lastTick.HasValue) firstTick = tick;
             var pending = new List<PuppetDecision>();
+            int ordinal = 0;
             foreach (var puppet in puppets)
             {
-                var selected = puppet.Selector.Select(tick);
+                int offset = (int)((long)ordinal++ * settings.ReevaluationIntervalTicks / puppets.Count);
+                bool evaluate = !decisions.ContainsKey(puppet.Id) ||
+                    unchecked((ulong)tick - (ulong)firstTick) % (ulong)settings.ReevaluationIntervalTicks == (ulong)offset;
+                var selected = evaluate ? puppet.Selector.Select(tick)
+                    : AiResult<UtilitySelection>.Ok(new UtilitySelection(decisions[puppet.Id].Selection.ActionId,
+                        decisions[puppet.Id].Selection.EvaluatedAtTick, false, decisions[puppet.Id].Selection.Scores));
                 if (!selected.Success) return selected.Failure;
                 var agent = world.Get(puppet.Id).Value;
                 var context = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
+                puppet.Actions.Reserve(context, selected.Value.ActionId);
                 var resolved = puppet.Actions.Resolve(context, selected.Value.ActionId);
                 pending.Add(new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target));
             }
@@ -77,7 +87,10 @@ namespace BehindTheCurtain.Core
             {
                 var agent = world.Get(decision.AgentId).Value;
                 var next = Clamp(PuppetActions.MoveTowards(agent.Position, decision.Goal,
-                    settings.MoveSpeed / settings.TicksPerSecond));
+                    (decision.Selection.ActionId == ActionIds.KeepDistance ? settings.KeepDistanceSpeed : settings.MoveSpeed) / settings.TicksPerSecond));
+                var movementContext = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
+                next = Clamp(puppets.Find(p => p.Id.Equals(agent.Id))!.Actions
+                    .ConstrainMovement(movementContext, decision.Selection.ActionId, next));
                 var moved = world.UpdatePosition(agent.Id, next,
                     PuppetActions.Direction(agent.Position, next, agent.Direction));
                 if (!moved.Success) return moved.Failure;

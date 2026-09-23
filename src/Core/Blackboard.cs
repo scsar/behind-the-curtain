@@ -50,6 +50,10 @@ namespace BehindTheCurtain.Core
             return AiResult<double>.Ok(intentions.TryGetValue(actionId, out var value) ? value : 1);
         }
 
+        internal bool HasIntention(string key) => intentions.ContainsKey(key);
+        internal double RoleIntention(TargetRole role, string action) =>
+            GetIntention(HasIntention(role + ":" + action) ? role + ":" + action : action).Value;
+
         public AiResult<Reservation> Reserve(string key, AgentId owner, long expiresAtTick, long tick)
         {
             if (string.IsNullOrWhiteSpace(key)) return AiResult<Reservation>.Fail(AiFailure.InvalidKey);

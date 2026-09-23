@@ -47,6 +47,7 @@ namespace BehindTheCurtain.Core
             EncounterWorld = new World();
             var board = EncounterWorld.GetBlackboard(Side.Puppets).Value;
             foreach (var pair in settings.Intentions.Tables[tactic.Id]) board.SetIntention(pair.Key, pair.Value);
+            board.SetFact("tactic", tactic.Id);
             SetThreat(board, TargetFactIds.HealerThreat, TendencyId.HealerFocus);
             SetThreat(board, TargetFactIds.RangedThreat, TendencyId.SustainedRanged);
             encounterActive = true;
@@ -86,7 +87,7 @@ namespace BehindTheCurtain.Core
                 if (value > highest || (value > 0 && value == highest && best.HasValue && pair.Key.Value < best.Value.Value))
                 { best = pair.Key; highest = value; }
             }
-            if (best.HasValue) board.SetFact(key, best.Value);
+            if (best.HasValue && highest >= settings.ThreatFactThreshold) board.SetFact(key, best.Value);
         }
 
         /// <summary>Clears memory, discards any active encounter, and permanently closes this expedition.</summary>

@@ -21,6 +21,7 @@ public static class Simulation
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        string? puppetScenario = null;
         var seed = DefaultSeed;
         var encounters = DefaultEncounters;
         var decay = ExpeditionSettings.DefaultDecay;
@@ -32,12 +33,17 @@ public static class Simulation
         {
             var option = args[i];
             if (option is not ("--seed" or "--encounters" or "--decay" or "--threshold"
-                or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies"))
+                or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies" or "--puppets"))
                 return ArgumentError(error, $"Unknown argument: {option}");
             if (!seen.Add(option)) return ArgumentError(error, $"Duplicate argument: {option}");
             if (i + 1 == args.Length) return ArgumentError(error, $"Missing value for {option}");
             var input = args[i + 1];
-            if (option is "--seed" or "--encounters")
+            if (option == "--puppets")
+            {
+                if (!PuppetSimulation.Names.Contains(input)) return ArgumentError(error, "Expected approach|circle|retreat|healer");
+                puppetScenario = input;
+            }
+            else if (option is "--seed" or "--encounters")
             {
                 if (!int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
                     || (option == "--encounters" && value <= 0))
@@ -76,6 +82,11 @@ public static class Simulation
             }
         }
 
+        if (puppetScenario != null)
+        {
+            PuppetSimulation.Print(PuppetSimulation.Run(puppetScenario, unchecked((ulong)seed)), output);
+            return 0;
+        }
         var random = new Random(seed);
         var tacticSettings = new TacticSettings(areaThreshold ?? threshold,
             healerThreshold ?? threshold, rangedThreshold ?? threshold);

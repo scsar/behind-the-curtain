@@ -6,7 +6,7 @@ namespace BehindTheCurtain.Core
     public static class ActionIds
     {
         public const string Approach = "approach", Intercept = "intercept", Spread = "spread",
-            Hold = "hold", Attack = "attack";
+            Hold = "hold", Attack = "attack", KeepDistance = "keepDistance";
     }
     public static class TargetFactIds
     {
@@ -16,7 +16,8 @@ namespace BehindTheCurtain.Core
     {
         // Provisional design multipliers; tune after playtesting.
         public IntentionSettings(double spread = 2.0, double spreadHold = 0.7,
-            double guardIntercept = 2.5, double shieldApproach = 2.0, double shieldHold = 0.5)
+            double guardIntercept = 2.5, double shieldApproach = 2.0, double shieldHold = 0.5,
+            IReadOnlyDictionary<TacticId, IReadOnlyDictionary<string, double>>? overrides = null)
         {
             var tables = new Dictionary<TacticId, IReadOnlyDictionary<string, double>>();
             foreach (TacticId id in System.Enum.GetValues(typeof(TacticId)))
@@ -27,6 +28,8 @@ namespace BehindTheCurtain.Core
                 if (id == TacticId.SpreadFormation) { table[ActionIds.Spread] = spread; table[ActionIds.Hold] = spreadHold; }
                 if (id == TacticId.GuardHealer) table[ActionIds.Intercept] = guardIntercept;
                 if (id == TacticId.ShieldAdvance) { table[ActionIds.Approach] = shieldApproach; table[ActionIds.Hold] = shieldHold; }
+                if (overrides != null && overrides.TryGetValue(id, out var entries))
+                    foreach (var entry in entries) table[entry.Key] = entry.Value;
                 tables[id] = new ReadOnlyDictionary<string, double>(table);
             }
             Tables = new ReadOnlyDictionary<TacticId, IReadOnlyDictionary<string, double>>(tables);

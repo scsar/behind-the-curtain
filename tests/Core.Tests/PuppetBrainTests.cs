@@ -23,14 +23,14 @@ public sealed class PuppetBrainTests
         Assert.Equal(ActionIds.Intercept, world.Get(new AgentId(10)).Value.CurrentAction);
         Assert.Equal(new AgentId(1), world.Get(new AgentId(10)).Value.Target);
         var first = brain.GetDecision(new AgentId(10)).Value.Goal;
-        Assert.Equal(1.5, first.X, 8);
-        Assert.Equal(0, first.Z, 8);
+        // The healer now maintains distance behind its guard, so the intercept point is relative.
+        Assert.InRange(Distance(first, world.Get(new AgentId(11)).Value.Position), 1.3, 1.7);
         world.UpdatePosition(new AgentId(1), new Vec2(0, 6), new Vec2(0, 1));
         Run(brain, N, N);
         AssertBetween(world, 10, 11, 1);
         var second = brain.GetDecision(new AgentId(10)).Value.Goal;
-        Assert.Equal(0, second.X, 8);
-        Assert.Equal(1.5, second.Z, 8);
+        Assert.InRange(Distance(second, world.Get(new AgentId(11)).Value.Position), 1.3, 1.7);
+        Assert.NotEqual(first, second);
         Assert.Equal(ActionIds.Intercept, world.Get(new AgentId(10)).Value.CurrentAction);
     }
 
@@ -44,7 +44,7 @@ public sealed class PuppetBrainTests
         Add(world, 10, new Vec2(-6, -3), role: TargetRole.Guard);
         Add(world, 11, new Vec2(-6, 0));
         Add(world, 12, new Vec2(-6, 3), role: TargetRole.Healer);
-        var start = world.GetAgents().Where(a => a.Side == Side.Puppets).ToArray();
+        var start = world.GetAgents().Where(a => a.Side == Side.Puppets && a.Role != TargetRole.Healer).ToArray();
         var brain = Brain(world);
         Run(brain, 0, 1);
         foreach (var agent in start)
@@ -78,11 +78,11 @@ public sealed class PuppetBrainTests
     public void StandardFormationHoldsAndReturnsToInitialWorldPositionsWithoutThreats()
     {
         var world = new World();
-        Add(world, 10, new Vec2(-4, 0));
-        Add(world, 11, new Vec2(0, 0));
-        Add(world, 12, new Vec2(4, 0));
-        // A human outside attack range need not cause the baseline formation to charge.
-        Add(world, 1, new Vec2(0, 5), Side.Players);
+        Add(world, 10, new Vec2(-4, 0), role: TargetRole.Guard);
+        Add(world, 11, new Vec2(0, 0), role: TargetRole.Guard);
+        Add(world, 12, new Vec2(4, 0), role: TargetRole.Guard);
+        // Guards hold only outside the threat radius; attackers now engage at any distance.
+        Add(world, 1, new Vec2(0, 9), Side.Players);
         var start = world.GetAgents().Where(a => a.Side == Side.Puppets).ToArray();
         var brain = Brain(world);
         Run(brain, 0, N);
@@ -167,9 +167,9 @@ public sealed class PuppetBrainTests
         Assert.Equal(new Vec2(0, 0), agent.Position);
         Assert.Equal(agent.Position, brain.GetDecision(agent.Id).Value.Goal);
         world.UpdatePosition(new AgentId(1), new Vec2(2.001, 0), new Vec2(1, 0));
-        Run(brain, 1, 1);
+        Run(brain, 1, 30);
         Assert.False(Score(brain, 10, ActionIds.Attack).Eligible);
-        Assert.Null(world.Get(agent.Id).Value.Target);
+        Assert.Equal(ActionIds.Approach, world.Get(agent.Id).Value.CurrentAction);
     }
 
     [Theory]
@@ -235,9 +235,9 @@ public sealed class PuppetBrainTests
         Assert.False(brain.GetDecision(new AgentId(10)).Success);
         Run(brain, 0, 1);
         var snapshot = brain.GetDecision(new AgentId(10)).Value;
-        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread, ActionIds.Hold, ActionIds.Attack },
+        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread, ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance },
             snapshot.Selection.Scores.Select(s => s.ActionId));
-        Assert.Equal(2, Score(brain, 10, ActionIds.Intercept).Considerations.Count);
+        Assert.Single(Score(brain, 10, ActionIds.Intercept).Considerations);
         foreach (var score in snapshot.Selection.Scores)
         {
             Assert.All(score.Considerations, c => Assert.InRange(c.Input, 0, 1));
@@ -246,8 +246,8 @@ public sealed class PuppetBrainTests
         }
         Run(brain, 1, 1);
         Assert.Equal(0, snapshot.Selection.EvaluatedAtTick);
-        Assert.Equal(1, brain.GetDecision(new AgentId(10)).Value.Selection.EvaluatedAtTick);
-        Assert.True(brain.GetDecision(new AgentId(10)).Value.Selection.Reevaluated);
+        Assert.Equal(0, brain.GetDecision(new AgentId(10)).Value.Selection.EvaluatedAtTick);
+        Assert.False(brain.GetDecision(new AgentId(10)).Value.Selection.Reevaluated);
     }
 
     [Fact]
