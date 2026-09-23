@@ -12,7 +12,7 @@ namespace BehindTheCurtain.Core
         internal PuppetActions(PuppetSettings settings, Vec2 formation)
         { this.settings = settings; this.formation = formation; }
 
-        internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random)
+        internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random, DirectorProfile profile)
         {
             var result = new List<UtilityAction>();
             foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
@@ -23,8 +23,10 @@ namespace BehindTheCurtain.Core
                 // A role-specific intention explicitly enables a default-zero candidate at unit weight.
                 result.Add(new UtilityAction(id, new[] { Factor("contract", c =>
                     (weight > 0 || c.Blackboard.HasIntention(role + ":" + id) ? 1 : 0) * Suitability(c, id)) },
-                    (weight > 0 ? weight : 1) * jitter));
+                    (weight > 0 ? weight : 1) * jitter) { TensionWeighted = true });
             }
+            if (profile.EnableWaver) result.Add(new UtilityAction(ActionIds.Waver, Array.Empty<UtilityConsideration>(), 0)
+                { TensionWeighted = true, Pull = profile.WaverPull });
             return result;
         }
 

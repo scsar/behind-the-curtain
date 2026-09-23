@@ -200,6 +200,16 @@ namespace BehindTheCurtain.Core
             return AiFailure.None;
         }
 
+        internal void TuneTension(AgentId id, double amount, long tick)
+        {
+            var cause = Input(id, tick, PuppetInputKind.TuneTension, 0, 0, amount);
+            SetValue(id, PuppetValueId.Tension, Math.Min(1, puppetStates[id].Tension + amount), tick, cause);
+        }
+        internal void RecordReclaim(PuppetStateEvent transition, double amount, double budget)
+        {
+            stateEvents.Add(new PuppetStateEvent(transition.Tick, PuppetStateEventKind.StringReclaimed,
+                transition.After, transition.After, transition.Cause) { ReclaimedAmount = amount, BudgetAfter = budget });
+        }
         internal double MovementScale(AgentId id) => puppetStates.TryGetValue(id, out var state)
             && state.Posture < StateSettings.PostureStaggerThreshold ? StateSettings.PostureSlowScale : 1;
     }

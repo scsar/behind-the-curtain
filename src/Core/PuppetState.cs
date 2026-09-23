@@ -7,8 +7,8 @@ namespace BehindTheCurtain.Core
     public enum PuppetKind { Puppet, Humanized }
     public enum PuppetStatus { Active, Groggy, Released, Broken, Downed }
     public enum PuppetValueId { Health, Posture, Tension }
-    public enum PuppetInputKind { Initialize, ApplyDamage, ReduceTension, RecoverPosture }
-    public enum PuppetStateEventKind { Input, ValueChanged, StatusChanged }
+    public enum PuppetInputKind { Initialize, ApplyDamage, ReduceTension, RecoverPosture, TuneTension }
+    public enum PuppetStateEventKind { Input, ValueChanged, StatusChanged, StringReclaimed }
 
     /// <summary>Provisional, arbitrarily chosen T16a-1 balance values.</summary>
     public sealed class PuppetStateSettings
@@ -112,5 +112,7 @@ namespace BehindTheCurtain.Core
         public PuppetState Before { get; }
         public PuppetState After { get; }
         public PuppetStateInput Cause { get; }
+        public double ReclaimedAmount { get; internal set; }
+        public double BudgetAfter { get; internal set; }
     }
 }

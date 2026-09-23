@@ -33,6 +33,7 @@ namespace BehindTheCurtain.Core
             foreach (TargetRole role in System.Enum.GetValues(typeof(TargetRole)))
             {
                 var row = new Dictionary<string, double> {
+                    [ActionIds.Waver] = 0,
                     [ActionIds.Approach] = role == TargetRole.Healer ? 0 : approachWeight,
                     [ActionIds.Attack] = role == TargetRole.Healer ? 0 : attackWeight,
                     [ActionIds.Hold] = role == TargetRole.Attacker ? 0 : holdWeight * guardHoldScale,
@@ -41,7 +42,8 @@ namespace BehindTheCurtain.Core
                     [ActionIds.KeepDistance] = role == TargetRole.Healer ? keepDistanceWeight : 0
                 };
                 if (roleWeights != null && roleWeights.TryGetValue(role, out var entries))
-                    foreach (var entry in entries) row[entry.Key] = entry.Value;
+                    foreach (var entry in entries)
+                        if (entry.Key != ActionIds.Waver) row[entry.Key] = entry.Value;
                 tables[role] = new ReadOnlyDictionary<string, double>(row);
             }
             RoleWeights = new ReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>(tables);
@@ -60,7 +62,7 @@ namespace BehindTheCurtain.Core
         // Provisional role table. Zero disables the default, but explicit role intentions can enable it.
         public IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>> RoleWeights { get; }
         public double GetRoleWeight(TargetRole role, string action) =>
-            RoleWeights.TryGetValue(role, out var row) && row.TryGetValue(action, out var weight) ? weight : 0;
+            action != ActionIds.Waver && RoleWeights.TryGetValue(role, out var row) && row.TryGetValue(action, out var weight) ? weight : 0;
         private bool ValidRoleWeights
         {
             get

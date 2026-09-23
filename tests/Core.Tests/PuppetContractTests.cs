@@ -197,7 +197,7 @@ public sealed class PuppetContractTests
         var settings = new PuppetSettings(roleWeights: tables);
         row[ActionIds.KeepDistance] = 9;
         Assert.Equal(2, settings.GetRoleWeight(TargetRole.Attacker, ActionIds.KeepDistance));
-        Assert.All(settings.RoleWeights.Values, r => Assert.Equal(6, r.Count));
+        Assert.All(settings.RoleWeights.Values, r => { Assert.Equal(7, r.Count); Assert.Equal(0, r[ActionIds.Waver]); });
         Assert.Equal(0, new PuppetSettings().GetRoleWeight(TargetRole.Attacker, ActionIds.KeepDistance));
         foreach (var invalid in new[] {
             new PuppetSettings(weightJitter: double.NaN), new PuppetSettings(weightJitter: 1),

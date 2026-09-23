@@ -22,7 +22,7 @@ public sealed class PuppetStateTests
     }
     private static PuppetBrain Brain(World world, int ticksPerSecond = 30, ulong seed = 1514)
         => PuppetBrain.Create(world, new PuppetSettings(ticksPerSecond: ticksPerSecond, weightJitter: 0),
-            new DeterministicRandom(seed)).Value;
+            new DeterministicRandom(seed), new DirectorProfile(tuneBudgetPerSecond: 0, enableWaver: false)).Value;
     private static PuppetState State(World world) => world.GetPuppetState(Id).Value;
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class PuppetStateTests
             Assert.Equal(expected, State(world).Status);
             Assert.False(brain.GetDecision(Id).Success);
         }
-        Assert.Equal(count, world.StateEvents.Count);
+        Assert.Equal(count + (damage ? 1 : 0), world.StateEvents.Count);
         Assert.Empty(world.GetParticipatingAgents());
         Assert.Single(world.GetAgents());
     }
@@ -308,22 +308,19 @@ public sealed class PuppetStateTests
     }
 
     [Fact]
-    public void PositiveTensionReductionDoesNotChangeAnyActionScoreOrTrajectory()
+    public void PositiveTensionReductionNowSelectsStationaryWaver()
     {
-        var intact = Make();
         var loose = Make();
-        intact.Add(Agent(1, x: 8, side: Side.Players));
         loose.Add(Agent(1, x: 8, side: Side.Players));
-        var a = Brain(intact);
-        var b = Brain(loose);
+        var brain = PuppetBrain.Create(loose, new PuppetSettings(), new DeterministicRandom(1),
+            new DirectorProfile(tuneBudgetPerSecond: 0)).Value;
         loose.ReduceTension(Id, 0.9999, 0);
+        var position = loose.Get(Id).Value.Position;
         for (int tick = 0; tick < 90; tick++)
         {
-            a.Tick(tick); b.Tick(tick);
-            Assert.Equal(a.GetDecision(Id).Value.Selection.Scores.Select(s => s.Score),
-                b.GetDecision(Id).Value.Selection.Scores.Select(s => s.Score));
-            Assert.Equal(a.GetDecision(Id).Value.Selection.ActionId, b.GetDecision(Id).Value.Selection.ActionId);
-            Assert.Equal(intact.Get(Id).Value.Position, loose.Get(Id).Value.Position);
+            brain.Tick(tick);
+            Assert.Equal(ActionIds.Waver, brain.GetDecision(Id).Value.Selection.ActionId);
+            Assert.Equal(position, loose.Get(Id).Value.Position);
         }
     }
 

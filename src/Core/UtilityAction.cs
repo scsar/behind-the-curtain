@@ -66,6 +66,8 @@ namespace BehindTheCurtain.Core
             Id = id; BaseWeight = baseWeight;
             Considerations = considerations == null ? null! : Array.AsReadOnly(considerations.ToArray());
         }
+        internal bool TensionWeighted { get; set; }
+        internal double Pull { get; set; }
         public string Id { get; }
         public IReadOnlyList<UtilityConsideration> Considerations { get; }
         public double BaseWeight { get; }

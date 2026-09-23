@@ -27,6 +27,8 @@ namespace BehindTheCurtain.Core
         public double IntentionMultiplier { get; }
         public double PersistenceBonus { get; }
         public double Score { get; }
+        public double RoleShare { get; internal set; }
+        public double PullShare { get; internal set; }
         public bool Eligible => Score > 0;
     }
 
@@ -125,9 +127,13 @@ namespace BehindTheCurtain.Core
                 double weighted = product == 0 || action.BaseWeight == 0 || intention == 0
                     ? 0 : product * action.BaseWeight * intention;
                 double bonus = weighted > 0 && action.Id == agent.CurrentAction ? settings.PersistenceBonus : 0;
-                double score = weighted + bonus;
+                double tension = action.TensionWeighted ? world.GetPuppetState(agentId).Value.Tension : 1;
+                // Preserve T15 persistence at full tension; it belongs to the directed role share.
+                double roleShare = tension * (weighted + bonus);
+                double pullShare = (1 - tension) * action.Pull;
+                double score = roleShare + pullShare;
                 if (!AiNumber.Finite(score)) return AiResult<UtilitySelection>.Fail(AiFailure.InvalidWeight);
-                scores.Add(new ActionScore(action.Id, values, product, action.BaseWeight, intention, bonus, score));
+                scores.Add(new ActionScore(action.Id, values, product, action.BaseWeight, intention, bonus, score) { RoleShare = roleShare, PullShare = pullShare });
                 if (score <= 0 || score < highest) continue;
                 if (score > highest) { best.Clear(); highest = score; }
                 best.Add(action.Id);
