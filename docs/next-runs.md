@@ -11,7 +11,7 @@ T4 첫 시도가 "원거리 지속"을 다르게 해석해서 거절된 뒤 정�
 - **테스트는 경계를 지정한다.** 기준 바로 아래, 정확히 기준, 입력 0개, 설정 변경.
 - **마지막 메시지에 계산 방식을 설명하게 한다.** 리뷰할 때 코드를 읽지 않고도 확인할 수 있도록.
 
-**여러 줄 명령은 PowerShell에서 실행한다.** cmd.exe는 첫 줄바꿈 뒤를 잘라 버린다(T4 retry 두 번이 이 때문에 정의 없이 전달됨). run 시작 시 출력되는 `task: N자, 끝: ...`가 명령의 마지막 문장과 같은지 확인한다.
+**긴 명령은 `docs/runs/<id>.md` 파일로 두고 `--prompt-file`로 넘긴다(T17부터).** 파일 끝의 `## 리뷰 포인트`는 실행기에 보내지 않고 리뷰 화면의 체크리스트가 된다. 붙여 넣기 실수(cmd 줄 잘림, 따옴표 미완성, 예전 명령 재사용)를 피한다. **여러 줄 명령은 PowerShell에서 실행한다.** cmd.exe는 첫 줄바꿈 뒤를 잘라 버린다(T4 retry 두 번이 이 때문에 정의 없이 전달됨). run 시작 시 출력되는 `task: N자, 끝: ...`가 명령의 마지막 문장과 같은지 확인한다.
 
 ## 매번의 흐름
 
@@ -392,21 +392,9 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
 - [ ] **T17 대응을 두 층으로 (Core, 연출가)**
   > `docs/ai-design.md` "대응: 무대 구성과 행동 의도". T15r Play에서 호위와 돌격이 교전마다 번갈아 나온 원인(대응을 하나만 고름)을 고친다. 무대 구성은 하나, 행동 의도는 섞고, 힐러 위협자는 대응과 독립적으로 반영한다. 원정 사이 기억(개인 일부 유지, 파티 초기화)도 여기서 한다. 원거리 위협자의 독립 반영은 T16b(상황)에서 한다.
   ```powershell
-  jevcode run --tag feature "docs/ai-design.md의 '대응: 무대 구성과 행동 의도'와 '관찰'의 원정 사이 기억을 src/Core에 구현한다. Unity 코드는 바꾸지 않는다. 공개 API(Expedition.TryStartEncounter, Tactic, PuppetBrain 등)는 유지하고, 새 기능은 추가로만 넣는다.
-  1) 무대 구성: 지금처럼 ITacticSelector.Select가 파티 기억으로 Tactic 하나를 고른다(진형, 합동 공격 계획, 약점, 준비 비용). 이 규칙과 T7 공정성 불변식은 바꾸지 않는다.
-  2) 경향 세기: ITacticSelector에 경향별 세기를 돌려주는 메서드를 더한다(무대 구성 TacticId → 세기 s, 0~1). 대응 관계는 AreaDependency → SpreadFormation, HealerFocus → GuardHealer, SustainedRanged → ShieldAdvance. 경향 값 v, 기준값 th(TacticSettings의 기존 기준값)일 때 v < th이면 s = 0, 아니면 s = BlendFloor + (1 - BlendFloor) × (v - th) / (1 - th). th = 1이면 s = 1(v = 1일 때만 넘으므로). BlendFloor 기본 0.5. RuleTacticSelector가 구현한다.
-  3) 행동 의도 섞기: 교전을 시작할 때 블랙보드 의도를 '고른 대응의 표' 대신 섞은 값으로 올린다. 키 k(IntentionSettings 표들에 나오는 모든 키의 합집합, 없는 표에서는 1)마다 목표 배율 = 1 + Σ_T s_T × (Tables[T][k] - 1), 0 미만이면 0. StandardFormation 표는 모두 1이므로 기여가 없다. 블랙보드의 'tactic' 사실은 지금처럼 무대 구성 Tactic.Id다.
-  4) 변화 폭 상한: 실제로 올리는 배율 = 이전 교전에 올린 배율 + clamp(목표 - 이전, -MaxIntentShiftPerEncounter, +MaxIntentShiftPerEncounter), 기본 0.75. 원정의 첫 교전 이전 값은 모든 키 1이다. 원정 동안 이전 값을 Expedition이 기억한다. 읽을 수 있게 노출한다(표시용).
-  5) 힐러 위협자의 독립 반영: Expedition이 힐러 위협 사실을 올릴 때(기존 규칙: 개인 기억의 힐러 집중이 가장 높은 사람, ThreatFactThreshold 0.35 이상) 그 세기(그 사람의 힐러 집중 기억 값)도 새 사실 키 'target.healerThreat.strength'로 올린다(TargetFactIds에 추가). PuppetActions의 intercept 적합도: 지금은 무대 구성이 GuardHealer면 1, 아니면 PassiveInterceptScale(0.02)이다. 바꾼다: GuardHealer면 1(그대로), 아니면 max(PassiveInterceptScale, 세기 × IndividualThreatInterceptScale(기본 0.5)). 예약으로 Guard 한 명만 맡는 규칙과 T16a-2의 장력 식은 그대로다. 결과: 무대 구성이 ShieldAdvance여도 힐러 위협자가 있으면 Guard 한 명은 힐러를 지킨다.
-  6) 원정 사이 기억: Expedition에 이월 스냅숏을 만드는 메서드를 더한다(EndExpedition 전에 부른다). 스냅숏에는 개인 기억만 들어가고 각 경향 값에 CarryOverRatio(기본 0.5)를 곱한다. 파티 기억과 의도 이전 값은 넣지 않는다. Expedition.TryCreate에 스냅숏을 받는 오버로드를 더해 새 원정의 개인 기억을 채운다. 스냅숏의 키는 지금의 AgentId를 그대로 쓰고, 원정을 넘는 플레이어 식별은 호출자가 같은 AgentId를 주는 것으로 가정한다(가정 섹션에 적는다).
-  7) 시뮬레이션: src/Core.Sim의 원정 시뮬레이션(--strategies) 출력의 교전 줄에 무대 구성, 섞은 의도 배율(approach, intercept, spread, hold), 힐러 위협 세기를 더한다. EndEncounter 대신 개인 관찰을 넘기는 EndEncounterWithIndividuals를 쓰고, 플레이어는 AgentId 1 한 명이다.
-  수치(BlendFloor, MaxIntentShiftPerEncounter, IndividualThreatInterceptScale, CarryOverRatio)는 설정 타입에 두고 임의로 정한 값임을 표시한다.
-  테스트: (a) 세기 경계: v = th - 0.0001 → 0, v = th → 0.5, v = 1 → 1, th = 1이고 v = 1 → 1. (b) 섞기: 힐러 집중 0.8, 원거리 0.9(기준값 0.5)이면 무대 구성은 ShieldAdvance이고, 목표 배율은 intercept 1 + 0.8 × 1.5 = 2.2, approach 1 + 0.9 × 1.0 = 1.9, hold 1 + 0.9 × (0.5 - 1) = 0.55. 경향이 하나만 넘으면 목표 배율이 그 경향의 세기로 표 쪽에 다가간다. 아무것도 넘지 않으면 모두 1. (c) 상한: 이전 1, 목표 2.2면 1.75, 다음 교전에 목표가 그대로면 2.2. 목표가 내려갈 때도 한 교전에 0.75까지만. 새 원정은 다시 1에서 시작. (d) 번갈아 문제의 재현과 해결: 힐러 집중과 원거리 지속이 교전마다 앞서거니 뒤서거니 하는 개인·파티 기억에서, 무대 구성은 바뀌어도 힐러 위협자가 있는 교전마다 PuppetBrain 시뮬레이션에서 Guard 정확히 한 명이 intercept를 고른다(두 명 이상 동시는 없다). (e) intercept 적합도: GuardHealer면 1, 아니면 세기 × 0.5, 사실이 없으면 0, 세기가 작으면 PassiveInterceptScale이 바닥. (f) 원정 사이: 개인 기억 0.8은 새 원정에서 0.4, 파티 기억은 없음(첫 교전 무대 구성 StandardFormation). 이월 0.4 ≥ 0.35이면 새 원정 첫 교전부터 힐러 위협 사실이 있고, 이월 값이 0.3이면 없다. (g) 결정론: 같은 입력이면 같은 무대 구성, 의도, 사실. 규칙 코어 테스트는 계속 통과해야 한다.
-  기존 테스트 중 '무대 구성의 표가 곧 블랙보드 의도'나 'GuardHealer가 아니면 intercept 0.02'를 전제로 한 것은 새 규칙에 맞게 고치고, 금지 패턴의 '막아서기 과다'는 '힐러 위협 사실이 없을 때 막아서기 비율 20% 미만'으로 바꾼다(docs/ai-design.md 금지 패턴 표와 같다). 무엇을 왜 바꿨는지 기존 동작 변경 섹션에 적는다.
-  마지막 메시지에 dotnet run --project src/Core.Sim -- --strategies HealerFirst,AreaFirst,HealerFirst,HealerFirst --encounters 5 출력과, 교전마다 무대 구성과 intercept 배율이 어떻게 바뀌는지 짧게 적는다."
+  jevcode run --tag feature --prompt-file docs/runs/T17.md
   ```
-  리뷰 포인트: 무대 구성 선택 규칙(RuleTacticSelector.Select)과 Tactic.TryCreatePlan이 diff에서 바뀌지 않았는지. 테스트 (d)가 실제로 무대 구성이 바뀌는 여러 교전을 돌리는지. Play: 인형을 끌고 다니며 멀리 있는 힐러를 원거리로 치는 것을 여러 교전 반복한다. 무대 구성이 바뀌어도 Guard 하나는 계속 힐러를 지키는지, 나머지는 여전히 나에게 오는지.
-
+  명령 본문과 리뷰 포인트는 `docs/runs/T17.md`에 있다. 리뷰 포인트는 실행기에 보내지 않고 리뷰 화면에 체크리스트로 나온다(jevcode `--prompt-file`).
 ## 참고
 
 - **Unity 클라이언트에서 할 일(규칙 코어 범위 밖):** 간섭 방식마다 색과 소리를 고정한 신호 언어. 강한 명령과 카운터 기회에 필요한 실만 선명하게 표시.
