@@ -396,10 +396,16 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```
   명령 본문과 리뷰 포인트는 `docs/runs/T17.md`에 있다. 리뷰 포인트는 실행기에 보내지 않고 리뷰 화면에 체크리스트로 나온다(jevcode `--prompt-file`).
 
-- [ ] **T16b-1 능력: 공유 장비 데이터와 능력이 여는 행동 (Core)**
+- [x] **T16b-1 능력: 공유 장비 데이터와 능력이 여는 행동 (Core)** — `3f49355`. Play 변화 없음(프리셋이 예전 역할과 같음)
   > `docs/ai-design.md` "능력 기반 행동". 장비 정의(무기 프로필, 능력 태그, 비용 두 가지), 장비 구성, 장비 프리셋(방패형·근접형·회복형)으로 역할 표를 옮겨 회귀 보존, 막아서기는 `Protect`가 있을 때만, 공격 거리와 이동 속도는 장비에서. 배역 배분과 행동 계약은 T16b-2.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/T16b-1.md
+  ```
+
+- [ ] **T16b-2 배역: 연출가의 배역 배분과 행동 계약 (Core)**
+  > `docs/ai-design.md` "배역은 행동 계약이다", "연출가: 판을 짜는 존재". 연출가가 장비 능력을 보고 배역을 나눔(Heal → Healer, Protect → Guard 최대 2, 나머지 Attacker, 줄 개체가 없으면 비움), 배역마다 계약(목표 + 우선 → 대체 → 기본 행동), 능력이 없으면 가중치를 대체 행동으로 옮김, 새 기본 행동 pressure(힐러 위협자 압박), 배역 수행 불능 시 정지 금지 패턴. 배분을 부르지 않는 기존 경로는 그대로.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/T16b-2.md
   ```
 
 ## 참고
