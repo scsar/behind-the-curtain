@@ -24,6 +24,7 @@ public static class Simulation
         string? puppetScenario = null;
         string stress = "none";
         string loadout = "presets";
+        bool cast = false;
         var seed = DefaultSeed;
         var encounters = DefaultEncounters;
         var decay = ExpeditionSettings.DefaultDecay;
@@ -34,6 +35,11 @@ public static class Simulation
         for (var i = 0; i < args.Length; i += 2)
         {
             var option = args[i];
+            if (option == "--cast")
+            {
+                if (!seen.Add(option)) return ArgumentError(error, "Duplicate argument: --cast");
+                cast = true; i--; continue;
+            }
             if (option is not ("--seed" or "--encounters" or "--decay" or "--threshold"
                 or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies" or "--puppets" or "--stress" or "--loadout"))
                 return ArgumentError(error, $"Unknown argument: {option}");
@@ -42,7 +48,7 @@ public static class Simulation
             var input = args[i + 1];
             if (option == "--loadout")
             {
-                if (input is not ("presets" or "mixed")) return ArgumentError(error, "Expected presets|mixed");
+                if (input is not ("presets" or "mixed" or "noprotect")) return ArgumentError(error, "Expected presets|mixed|noprotect");
                 loadout = input;
             }
             else if (option == "--stress")
@@ -94,11 +100,12 @@ public static class Simulation
             }
         }
 
+        if (cast && puppetScenario == null) return ArgumentError(error, "--cast requires --puppets");
         if (seen.Contains("--loadout") && puppetScenario == null) return ArgumentError(error, "--loadout requires --puppets");
         if (seen.Contains("--stress") && puppetScenario == null) return ArgumentError(error, "--stress requires --puppets");
         if (puppetScenario != null)
         {
-            PuppetSimulation.Print(PuppetSimulation.Run(puppetScenario, unchecked((ulong)seed), null, null, null, stress, loadout: loadout), output);
+            PuppetSimulation.Print(PuppetSimulation.Run(puppetScenario, unchecked((ulong)seed), null, null, null, stress, loadout: loadout, cast: cast), output);
             return 0;
         }
         var random = new Random(seed);

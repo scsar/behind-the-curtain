@@ -5,6 +5,7 @@ namespace BehindTheCurtain.Core
 {
     public static class ActionIds
     {
+        public const string Pressure = "pressure";
         public const string Waver = "waver";
         public const string Approach = "approach", Intercept = "intercept", Spread = "spread",
             Hold = "hold", Attack = "attack", KeepDistance = "keepDistance";

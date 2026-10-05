@@ -37,6 +37,7 @@ namespace BehindTheCurtain.Core
             {
                 var row = new Dictionary<string, double> {
                     [ActionIds.Waver] = 0,
+                    [ActionIds.Pressure] = 0,
                     [ActionIds.Approach] = role == TargetRole.Healer ? 0 : approachWeight,
                     [ActionIds.Attack] = role == TargetRole.Healer ? 0 : attackWeight,
                     [ActionIds.Hold] = role == TargetRole.Attacker ? 0 : holdWeight * guardHoldScale,
@@ -46,7 +47,7 @@ namespace BehindTheCurtain.Core
                 };
                 if (roleWeights != null && roleWeights.TryGetValue(role, out var entries))
                     foreach (var entry in entries)
-                        if (entry.Key != ActionIds.Waver) row[entry.Key] = entry.Value;
+                        if (entry.Key != ActionIds.Waver && entry.Key != ActionIds.Pressure) row[entry.Key] = entry.Value;
                 tables[role] = new ReadOnlyDictionary<string, double>(row);
             }
             RoleWeights = new ReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>(tables);

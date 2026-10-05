@@ -8,6 +8,10 @@ namespace BehindTheCurtain.Core
         internal PuppetDecision(AgentId id, UtilitySelection selection, Vec2 goal, AgentId? target)
         { AgentId = id; Selection = selection; Goal = goal; Target = target; }
         public AgentId AgentId { get; }
+        public TargetRole Role { get; internal set; }
+        public RoleContract Contract => RoleContract.ForRole(Role);
+        public int ContractActionIndex => Contract.IndexOf(Selection.ActionId);
+        public ContractActionKind ContractActionKind => Contract.Classify(Selection.ActionId);
         public UtilitySelection Selection { get; }
         /// <summary>Arena-clamped destination used for this tick, including stationary attacks.</summary>
         public Vec2 Goal { get; }
@@ -109,7 +113,7 @@ namespace BehindTheCurtain.Core
                 var context = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
                 puppet.Actions.Reserve(context, selected.Value.ActionId);
                 var resolved = puppet.Actions.Resolve(context, selected.Value.ActionId);
-                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target);
+                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role };
                 if (selected.Value.ActionId != null && (selected.Value.ActionId == ActionIds.Waver || settings.GetRoleWeight(agent.Role, selected.Value.ActionId) == 0))
                 {
                     PuppetStateEvent? cause = null;

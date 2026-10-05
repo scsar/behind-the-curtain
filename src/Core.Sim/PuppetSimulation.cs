@@ -30,6 +30,7 @@ public sealed class PuppetScenarioSettings
     public double SpreadAllowance { get; init; } = 0.3;
     public double Epsilon { get; init; } = 1e-8;
     public int SwitchWindowSeconds { get; init; } = 3;
+    public int InactivityLimitSeconds { get; init; } = 1;
     public int SwitchLimit { get; init; } = 3;
     public double SynchronizationLimit { get; init; } = 0.2;
     public double InterceptLimit { get; init; } = 0.2;
@@ -48,6 +49,9 @@ public sealed class PuppetTrajectory
     public IReadOnlyList<PuppetStateEvent> Events { get; internal set; } = Array.Empty<PuppetStateEvent>();
     public IReadOnlyList<string> EquipmentTable { get; internal set; } = Array.Empty<string>();
     public List<PuppetFrame> Frames { get; } = new();
+    /// <summary>Stationary non-attacking ticks past the limit for agents lacking their primary capability.</summary>
+    public int InactivityFailures { get; internal set; }
+    public int LongestInactiveTicks { get; internal set; }
     public int FleeTicks { get; internal set; }
     public Dictionary<int, List<int>> Switches { get; } = new();
     public int ChangedTicks { get; internal set; }
@@ -75,8 +79,12 @@ public static class PuppetSimulation
 
     public static PuppetTrajectory Run(string name, ulong seed, IntentionSettings? intentions,
         PuppetSettings? settings, PuppetScenarioSettings? scenario, string stress, DirectorProfile? profile = null, string loadout = "presets", bool explicitPresets = false)
+        => Run(name, seed, intentions, settings, scenario, stress, false, profile, loadout, explicitPresets);
+
+    public static PuppetTrajectory Run(string name, ulong seed, IntentionSettings? intentions,
+        PuppetSettings? settings, PuppetScenarioSettings? scenario, string stress, bool cast, DirectorProfile? profile = null, string loadout = "presets", bool explicitPresets = false)
     {
-        if (loadout is not ("presets" or "mixed")) throw new ArgumentException("Unknown loadout", nameof(loadout));
+        if (loadout is not ("presets" or "mixed" or "noprotect")) throw new ArgumentException("Unknown loadout", nameof(loadout));
         if (stress is not ("none" or "tension" or "mixed")) throw new ArgumentException("Unknown stress", nameof(stress));
         if (!Names.Contains(name)) throw new ArgumentException("Unknown puppet scenario", nameof(name));
         scenario ??= new PuppetScenarioSettings();
@@ -96,13 +104,15 @@ public static class PuppetSimulation
         Add(11, TargetRole.Guard, scenario.SecondGuardStart);
         Add(12, TargetRole.Attacker, scenario.AttackerStart);
         Add(13, TargetRole.Healer, scenario.HealerStart);
+        if (cast && !DirectorCasting.Assign(world).Success) throw new InvalidOperationException("Casting failed");
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(seed), profile ?? new DirectorProfile()).Value;
         var result = new PuppetTrajectory { HasHealerThreat = world.GetBlackboard(Side.Puppets).Value.GetFact<AgentId>(TargetFactIds.HealerThreat).Success };
         result.EquipmentTable = world.GetAgents().Where(a => a.Side == Side.Puppets).Select(a =>
         {
             var equipment = world.GetLoadout(a.Id).Value;
-            return FormattableString.Invariant($"{a.Id.Value}:{a.Role} equipment={string.Join(",", equipment.EquipmentIds)} capabilities={string.Join(",", equipment.Capabilities)} attackRange={equipment.GetAttackRange(settings):F2} moveSpeedScale={equipment.MoveSpeedScale:F2}");
+            return FormattableString.Invariant($"{a.Id.Value}:{a.Role} equipment={string.Join(",", equipment.EquipmentIds)} capabilities={string.Join(",", equipment.Capabilities)} attackRange={equipment.GetAttackRange(settings):F2} moveSpeedScale={equipment.MoveSpeedScale:F2} goal={RoleContract.ForRole(a.Role).Goal}");
         }).ToArray();
+        var inactive = new Dictionary<int, int>();
         var outside = new Dictionary<int, int>();
         var histories = new Dictionary<int, List<string?>>();
         int residence = 0, noAttack = 0;
@@ -142,7 +152,7 @@ public static class PuppetSimulation
                 if (tick == 0)
                 {
                     result.Switches[id] = new(); histories[id] = new() { a.CurrentAction };
-                    outside[id] = 0; result.LongestOutsideBand[id] = 0;
+                    inactive[id] = 0; outside[id] = 0; result.LongestOutsideBand[id] = 0;
                 }
                 else if (world.CanAct(a.Id) && a.CurrentAction != before[i].CurrentAction)
                 {
@@ -154,13 +164,18 @@ public static class PuppetSimulation
                     histories[id].Add(a.CurrentAction);
                     var h = histories[id];
                     if (h.Count >= 3 && h[^1] == h[^3] &&
-                        ((h[^1] == ActionIds.Approach && h[^2] is ActionIds.Hold or ActionIds.KeepDistance)
-                        || (h[^2] == ActionIds.Approach && h[^1] is ActionIds.Hold or ActionIds.KeepDistance))) result.PingPongs++;
+                        ((h[^1] is ActionIds.Approach or ActionIds.Pressure && h[^2] is ActionIds.Hold or ActionIds.KeepDistance)
+                        || (h[^2] is ActionIds.Approach or ActionIds.Pressure && h[^1] is ActionIds.Hold or ActionIds.KeepDistance))) result.PingPongs++;
                 }
                 int switches = result.Switches[id].Count(t => t > tick - scenario.SwitchWindowSeconds * settings.TicksPerSecond);
                 result.MaxSwitchesInWindow = Math.Max(result.MaxSwitchesInWindow, switches);
-                if (!world.CanAct(a.Id)) continue;
+                if (!world.CanAct(a.Id)) { inactive[id] = 0; continue; }
                 double oldDistance = Distance(before[i].Position, player), distance = Distance(a.Position, player);
+                bool unableToPerformPrimary = a.Role == TargetRole.Guard && !world.GetLoadout(a.Id).Value.HasCapability(CapabilityTag.Protect);
+                inactive[id] = unableToPerformPrimary && distance <= settings.ThreatRadius && a.CurrentAction != ActionIds.Waver && a.CurrentAction != ActionIds.Attack
+                    && Distance(before[i].Position, a.Position) <= scenario.Epsilon ? inactive[id] + 1 : 0;
+                result.LongestInactiveTicks = Math.Max(result.LongestInactiveTicks, inactive[id]);
+                if (inactive[id] > scenario.InactivityLimitSeconds * settings.TicksPerSecond) result.InactivityFailures++;
                 var keepScore = brain.GetDecision(a.Id).Value.Selection.Scores.Single(s => s.ActionId == ActionIds.KeepDistance);
                 bool keepEnabled = keepScore.IntentionMultiplier > 0 &&
                     (settings.GetRoleWeight(a.Role, ActionIds.KeepDistance) > 0 || keepScore.Product > 0);
@@ -198,6 +213,7 @@ public static class PuppetSimulation
             else
             {
                 var equipment = loadout == "presets" || id == 13 ? LoadoutPresets.ForRole(role)
+                    : loadout == "noprotect" ? Loadout.Create(new[] { "weapon.melee" }).Value
                     : Loadout.Create(id == 10 ? new[] { "weapon.melee", "armor.heavyShield" }
                         : id == 11 ? new[] { "weapon.melee" } : new[] { "weapon.spear" }).Value;
                 world.Add(agent, initial, equipment);
@@ -220,6 +236,6 @@ public static class PuppetSimulation
         foreach (var e in result.Events)
             output.WriteLine(FormattableString.Invariant($"event tick={e.Tick} agent={e.AgentId.Value} {e.Kind} {e.Cause.Kind} {e.Before.Status}->{e.After.Status} value={e.ValueId} T={e.Before.Tension:F4}->{e.After.Tension:F4} P={e.Before.Posture:F2}->{e.After.Posture:F2} H={e.Before.Health:F2}->{e.After.Health:F2} reclaim={e.ReclaimedAmount:F3} budget={e.BudgetAfter:F3}"));
         output.WriteLine(FormattableString.Invariant(
-            $"flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs}"));
+            $"inactive={result.InactivityFailures} longestInactive={result.LongestInactiveTicks} flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs}"));
     }
 }

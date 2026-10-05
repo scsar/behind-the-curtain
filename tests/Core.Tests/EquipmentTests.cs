@@ -63,7 +63,7 @@ public sealed class EquipmentTests
             if (!protect)
             {
                 Assert.Equal(0, scores.Single(s => s.ActionId == ActionIds.Intercept).Score);
-                Assert.Contains(after.CurrentAction, new[] { ActionIds.Approach, ActionIds.Attack });
+                Assert.Contains(after.CurrentAction, new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Pressure });
                 Assert.True(after.CurrentAction == ActionIds.Attack || !before.Equals(after.Position));
             }
             else if (tick == 0) Assert.Equal(ActionIds.Intercept, after.CurrentAction);
