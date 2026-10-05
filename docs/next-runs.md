@@ -395,6 +395,13 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/T17.md
   ```
   명령 본문과 리뷰 포인트는 `docs/runs/T17.md`에 있다. 리뷰 포인트는 실행기에 보내지 않고 리뷰 화면에 체크리스트로 나온다(jevcode `--prompt-file`).
+
+- [ ] **T16b-1 능력: 공유 장비 데이터와 능력이 여는 행동 (Core)**
+  > `docs/ai-design.md` "능력 기반 행동". 장비 정의(무기 프로필, 능력 태그, 비용 두 가지), 장비 구성, 장비 프리셋(방패형·근접형·회복형)으로 역할 표를 옮겨 회귀 보존, 막아서기는 `Protect`가 있을 때만, 공격 거리와 이동 속도는 장비에서. 배역 배분과 행동 계약은 T16b-2.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/T16b-1.md
+  ```
+
 ## 참고
 
 - **Unity 클라이언트에서 할 일(규칙 코어 범위 밖):** 간섭 방식마다 색과 소리를 고정한 신호 언어. 강한 명령과 카운터 기회에 필요한 실만 선명하게 표시.
