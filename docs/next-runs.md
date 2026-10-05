@@ -456,14 +456,14 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag fix --prompt-file docs/runs/T16b-3a-1f.md
   ```
 
-- [ ] **T16b-3a-1r 가중치, pressure 묶임, 힐러 떨림 (Core, retry)**
+- [x] **T16b-3a-1r 가중치, pressure 묶임, 힐러 떨림 (Core, retry)** — `1e4043c`. dotnet test 577 통과(실패·건너뜀 0), Unity 통과. 해시 갱신 5개는 모두 힐러 정렬 유지 때문(해시 테스트는 새 행동을 끈 상태), 막아서기 품질은 그대로(healer 80.0%, orbit 100.0%·9.2m). 삭제 테스트 둘은 의도된 것(4(c) 명시, 문제 증명용 테스트 → 반대 테스트로 대체). **판단 거리: 견제가 오히려 몰림을 늘림** — duo mixed cast 몰림 100%(301 tick 내내 모두 B), duo-swap mixed cast 57.5%. "덜 노려지는 사람"을 셀 때 힐러의 거리 유지 대상과 막아서기 대상이 어떻게 세어지는지 의심 → T16b-3a-1b에서 견제 대상 선택과 함께 다룸. 에이전트의 마지막 메시지가 중국어(번체)로 옴 → AGENTS.md에 한국어 규칙 추가 예정. 비용: 396만 토큰, 23분(가장 큼)
   > 3a-1f의 재시도. 세 수정은 같고, 테스트 기준을 바로잡는다: 궤적 해시는 이유와 전후 지표를 적고 갱신(막아서기 품질이 나빠지면 갱신 대신 원인 수정), 점유율은 순서만 검사, 모순된 몰림 감소 테스트는 지우고 보고만, mixed 조합 금지 패턴은 원인이 새 행동 안이면 고치고 밖이면 사유를 적어 건너뜀.
   ```powershell
   jevcode run --tag retry --prompt-file docs/runs/T16b-3a-1r.md
   ```
 
 - [ ] **U7 인형 행동 수치를 Unity에서 조절 (Unity)**
-  > "굼뜨고 불연속적"이라는 Play 피드백을 숫자 하나 바꿀 때마다 run을 돌리지 않고 직접 맞추기 위한 도구. Core의 PuppetSettings·BasicActionSettings 숫자를 인스펙터에 모두 연결(초깃값 = Core 기본값), F5로 지금 교전에 다시 적용, 잘못된 값은 경고 후 이전 값 유지, F6으로 기본값과 다른 값만 한 줄 기록·복사. Core는 바꾸지 않는다. **T16b-3a-1r 뒤에 돌린다**(3a-1r이 새 설정 ApproachNonMeleeScale, KeepAlignTolerance를 더하므로). 좋은 값을 찾으면 그 줄을 주면 기본값 반영 run을 쓴다.
+  > **T16b-3a-1b 뒤에 돌린다(2026-10-05 결정: 측면 돌기·견제·포위가 다 들어온 뒤 한 번에 맞춘다). 명령은 그때 자동 연결 방식(설정 이름-값 목록을 Core 생성자 인자 이름으로 맞춰 넣음)으로 고쳐 쓴다.** "굼뜨고 불연속적"이라는 Play 피드백을 숫자 하나 바꿀 때마다 run을 돌리지 않고 직접 맞추기 위한 도구. Core의 PuppetSettings·BasicActionSettings 숫자를 인스펙터에 모두 연결(초깃값 = Core 기본값), F5로 지금 교전에 다시 적용, 잘못된 값은 경고 후 이전 값 유지, F6으로 기본값과 다른 값만 한 줄 기록·복사. Core는 바꾸지 않는다. **T16b-3a-1r 뒤에 돌린다**(3a-1r이 새 설정 ApproachNonMeleeScale, KeepAlignTolerance를 더하므로). 좋은 값을 찾으면 그 줄을 주면 기본값 반영 run을 쓴다.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/U7.md
   ```
