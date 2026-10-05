@@ -94,6 +94,7 @@ namespace BehindTheCurtain.Prototype
             light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(settings.LightEulerAngles);
             gameObject.AddComponent<PrototypeJointAttack>().Initialize(settings, player, puppets);
+            PrototypeEquipmentView.CreateGallery(transform);
         }
 
         private T FindSceneComponent<T>() where T : Component

@@ -43,6 +43,11 @@ namespace BehindTheCurtain.Prototype
                     Planar(restPositions[i]), Planar(restRotations[i] * Vector3.forward), settings.PuppetSize / 2f));
                 if (!added.Success) return BrainFailure(added.Failure);
                 attackReadyTicks[i] = clock.Tick;
+                var loadout = world.GetLoadout(PuppetAgentId(i));
+                if (!loadout.Success) return BrainFailure(loadout.Failure);
+                var equipmentView = puppets[i].GetComponent<PrototypeEquipmentView>();
+                if (equipmentView == null) equipmentView = puppets[i].gameObject.AddComponent<PrototypeEquipmentView>();
+                equipmentView.SetEquipment(loadout.Value.EquipmentIds);
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];
             }
