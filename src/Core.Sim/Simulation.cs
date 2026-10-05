@@ -58,7 +58,7 @@ public static class Simulation
             }
             else if (option == "--puppets")
             {
-                if (!PuppetSimulation.Names.Contains(input)) return ArgumentError(error, "Expected approach|circle|retreat|healer|standstill|orbit|passby");
+                if (!PuppetSimulation.Names.Contains(input)) return ArgumentError(error, "Expected approach|circle|retreat|healer|standstill|orbit|passby|duo|duo-swap");
                 puppetScenario = input;
             }
             else if (option is "--seed" or "--encounters")
@@ -191,7 +191,7 @@ public static class Simulation
     private static int ArgumentError(TextWriter error, string reason)
     {
         error.WriteLine(reason);
-        error.WriteLine("Puppets: Core.Sim --puppets <approach|circle|retreat|healer|standstill|orbit|passby> [--loadout <presets|mixed>] [--stress <none|tension|mixed>] [--seed <int>]");
+        error.WriteLine("Puppets: Core.Sim --puppets <approach|circle|retreat|healer|standstill|orbit|passby|duo|duo-swap> [--loadout <presets|mixed>] [--stress <none|tension|mixed>] [--seed <int>]");
         error.WriteLine("Usage: Core.Sim [--seed <int>] [--encounters <positive int>] [--decay <0..1 exclusive>] [--threshold <0..1>] [--area-threshold <0..1>] [--healer-threshold <0..1>] [--ranged-threshold <0..1>] [--strategies <AreaFirst,HealerFirst,...>]");
         return 2;
     }

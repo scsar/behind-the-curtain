@@ -6,6 +6,12 @@ namespace BehindTheCurtain.Core.Sim;
 public sealed class PuppetScenarioSettings
 {
     // Provisional stress inputs, chosen arbitrarily for this experiment.
+    public Vec2 DuoFrontStart { get; init; } = new Vec2(0, 12);
+    public Vec2 DuoFrontStop { get; init; } = new Vec2(0, 4);
+    public Vec2 DuoSideStart { get; init; } = new Vec2(9, -1);
+    public double DuoSpeed { get; init; } = 5;
+    public int DuoSwapSecond { get; init; } = 5;
+    public int DuoRecoverySeconds { get; init; } = 2;
     public int AttackerStressSecond { get; init; } = 2;
     public int GuardStressSecond { get; init; } = 4;
     public int HumanizedStressSecond { get; init; } = 3;
@@ -46,6 +52,7 @@ public sealed class PuppetScenarioSettings
 
 public sealed record PuppetFrame(int Tick, Vec2 Player, AgentState[] Puppets)
 {
+    public AgentState[] Players { get; init; } = Array.Empty<AgentState>();
     public PuppetState[] States { get; init; } = Array.Empty<PuppetState>();
     public AgentId? TuneTarget { get; init; }
     public double TuneAmount { get; init; }
@@ -68,6 +75,12 @@ public sealed class PuppetTrajectory
     public double InterceptTravel { get; internal set; }
     public double InterceptQualityRatio => InterceptSettledTicks == 0 ? 0 : (double)InterceptQualityTicks / InterceptSettledTicks;
     public double InterceptMeanDistance => InterceptSettledTicks == 0 ? 0 : InterceptDistanceSum / InterceptSettledTicks;
+    public Dictionary<int, int> TargetAgentTicks { get; } = new();
+    public Dictionary<int, int> InterceptTargetTicks { get; } = new();
+    public int TargetedAgentTicks { get; internal set; }
+    public int NonHealerTargetTicks { get; internal set; }
+    public int ConcentratedTicks { get; internal set; }
+    public double ConcentrationRatio => NonHealerTargetTicks == 0 ? 0 : (double)ConcentratedTicks / NonHealerTargetTicks;
     public int FleeTicks { get; internal set; }
     public Dictionary<int, List<int>> Switches { get; } = new();
     public int ChangedTicks { get; internal set; }
@@ -87,7 +100,7 @@ public sealed class PuppetTrajectory
 
 public static class PuppetSimulation
 {
-    public static readonly string[] Names = { "approach", "circle", "retreat", "healer", "standstill", "orbit", "passby" };
+    public static readonly string[] Names = { "approach", "circle", "retreat", "healer", "standstill", "orbit", "passby", "duo", "duo-swap" };
 
     public static PuppetTrajectory Run(string name, ulong seed = 1, IntentionSettings? intentions = null,
         PuppetSettings? settings = null, PuppetScenarioSettings? scenario = null)
@@ -107,15 +120,17 @@ public static class PuppetSimulation
         settings ??= new PuppetSettings(arenaHalfSize: scenario.ArenaHalfSize);
         Expedition.TryCreate(new ExpeditionSettings(intentions: intentions), new RuleTacticSelector(), out var expedition);
         expedition!.TryStartEncounter(out _);
-        if (name is "healer" or "standstill" or "orbit" or "passby")
+        bool duo = name is "duo" or "duo-swap";
+        if (duo || name is "healer" or "standstill" or "orbit" or "passby")
         {
             CombatObserver.TryCreate(new ObserverSettings(), out var observer);
-            observer!.Observe(new AttackEvent(0, TargetRole.Healer, AttackRange.Melee, 0, new AgentId(1), true));
+            observer!.Observe(new AttackEvent(0, TargetRole.Healer, AttackRange.Melee, 0, new AgentId(duo ? 2 : 1), true));
             expedition.EndEncounterWithIndividuals(observer.EndEncounterWithIndividuals());
             expedition.TryStartEncounter(out _);
         }
         var world = expedition.EncounterWorld!;
-        Add(1, TargetRole.Attacker, new Vec2(0, scenario.Far), Side.Players);
+        Add(1, TargetRole.Attacker, duo ? scenario.DuoFrontStart : new Vec2(0, scenario.Far), Side.Players);
+        if (duo) Add(2, TargetRole.Attacker, scenario.DuoSideStart, Side.Players);
         Add(10, TargetRole.Guard, scenario.FirstGuardStart);
         Add(11, TargetRole.Guard, scenario.SecondGuardStart);
         Add(12, TargetRole.Attacker, scenario.AttackerStart);
@@ -123,6 +138,11 @@ public static class PuppetSimulation
         if (cast && !DirectorCasting.Assign(world).Success) throw new InvalidOperationException("Casting failed");
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(seed), profile ?? new DirectorProfile()).Value;
         var result = new PuppetTrajectory { HasHealerThreat = world.GetBlackboard(Side.Puppets).Value.GetFact<AgentId>(TargetFactIds.HealerThreat).Success };
+        foreach (var human in world.GetAgents().Where(a => a.Side == Side.Players))
+        {
+            result.TargetAgentTicks[human.Id.Value] = 0;
+            result.InterceptTargetTicks[human.Id.Value] = 0;
+        }
         result.EquipmentTable = world.GetAgents().Where(a => a.Side == Side.Puppets).Select(a =>
         {
             var equipment = world.GetLoadout(a.Id).Value;
@@ -151,6 +171,16 @@ public static class PuppetSimulation
                 _ => new Vec2(scenario.CircleRadius * Math.Sin(Math.Min(Math.PI, time * scenario.AngularSpeed)),
                     scenario.CircleRadius * Math.Cos(Math.Min(Math.PI, time * scenario.AngularSpeed)))
             };
+            if (duo)
+            {
+                int swapTick = scenario.DuoSwapSecond * settings.TicksPerSecond;
+                player = name == "duo-swap" && tick >= swapTick
+                    ? MoveAlong(scenario.DuoFrontStop, scenario.DuoSideStart, tick - swapTick)
+                    : MoveAlong(scenario.DuoFrontStart, scenario.DuoFrontStop, tick);
+                var second = name == "duo-swap" && tick >= swapTick
+                    ? MoveAlong(scenario.DuoSideStart, scenario.DuoFrontStop, tick - swapTick) : scenario.DuoSideStart;
+                world.UpdatePosition(new AgentId(2), second, new Vec2(0, 1));
+            }
             world.UpdatePosition(new AgentId(1), player, new Vec2(0, 1));
             if (stress == "tension")
             {
@@ -167,12 +197,21 @@ public static class PuppetSimulation
             if (brain.Tick(tick) != AiFailure.None) throw new InvalidOperationException("Brain tick failed");
             if (name == "orbit") world.UpdatePosition(new AgentId(13), scenario.HealerStart, new Vec2(0, 1));
             var after = world.GetAgents().Where(a => a.Side == Side.Puppets).ToArray();
-            result.Frames.Add(new PuppetFrame(tick, player, after) { States = world.GetPuppetStates().ToArray(),
+            var players = world.GetAgents().Where(a => a.Side == Side.Players).ToArray();
+            Vec2 TargetPosition(AgentState agent) => players.FirstOrDefault(p => agent.Target.HasValue && p.Id.Equals(agent.Target.Value))?.Position ?? player;
+            result.Frames.Add(new PuppetFrame(tick, player, after) { Players = players, States = world.GetPuppetStates().ToArray(),
                 TuneTarget = brain.TuneTarget, TuneAmount = brain.TuneAmount, Budget = brain.CurrentTuneBudgetPerSecond });
             int changed = 0;
             for (int i = 0; i < after.Length; i++)
             {
                 var a = after[i]; int id = a.Id.Value;
+                if (a.Target.HasValue && result.TargetAgentTicks.ContainsKey(a.Target.Value.Value))
+                {
+                    result.TargetedAgentTicks++;
+                    result.TargetAgentTicks[a.Target.Value.Value]++;
+                    if (a.CurrentAction == ActionIds.Intercept) result.InterceptTargetTicks[a.Target.Value.Value]++;
+                }
+                Vec2 targetPosition = duo ? TargetPosition(a) : player;
                 var move = new Vec2(a.Position.X - before[i].Position.X, a.Position.Z - before[i].Position.Z);
                 if (!reversals.ContainsKey(id)) { reversals[id] = new(); result.MaxDirectionReversals[id] = 0; }
                 if (previousMoves.TryGetValue(id, out var priorMove)
@@ -187,7 +226,7 @@ public static class PuppetSimulation
                 if (interceptAge[id] > scenario.InterceptSettlingTicks)
                 {
                     var healer = after.Single(h => h.Id.Value == 13);
-                    double gap = Distance(a.Position, InterceptGeometry.ClosestPoint(a.Position, healer.Position, player, settings));
+                    double gap = Distance(a.Position, InterceptGeometry.ClosestPoint(a.Position, healer.Position, targetPosition, settings));
                     result.InterceptSettledTicks++;
                     if (gap <= scenario.InterceptQualityDistance) result.InterceptQualityTicks++;
                     result.InterceptDistanceSum += gap;
@@ -214,7 +253,7 @@ public static class PuppetSimulation
                 int switches = result.Switches[id].Count(t => t > tick - scenario.SwitchWindowSeconds * settings.TicksPerSecond);
                 result.MaxSwitchesInWindow = Math.Max(result.MaxSwitchesInWindow, switches);
                 if (!world.CanAct(a.Id)) { inactive[id] = 0; continue; }
-                double oldDistance = Distance(before[i].Position, player), distance = Distance(a.Position, player);
+                double oldDistance = Distance(before[i].Position, targetPosition), distance = Distance(a.Position, targetPosition);
                 bool unableToPerformPrimary = a.Role == TargetRole.Guard && !world.GetLoadout(a.Id).Value.HasCapability(CapabilityTag.Protect);
                 inactive[id] = unableToPerformPrimary && distance <= settings.ThreatRadius && a.CurrentAction != ActionIds.Waver && a.CurrentAction != ActionIds.Attack
                     && Distance(before[i].Position, a.Position) <= scenario.Epsilon ? inactive[id] + 1 : 0;
@@ -232,15 +271,21 @@ public static class PuppetSimulation
                     result.LongestOutsideBand[id] = Math.Max(result.LongestOutsideBand[id], outside[id]);
                 }
             }
+            var nonHealers = after.Where(a => a.Role != TargetRole.Healer).ToArray();
+            if (nonHealers.Any(a => a.Target.HasValue))
+            {
+                result.NonHealerTargetTicks++;
+                if (nonHealers.All(a => a.Target.HasValue && a.Target.Equals(nonHealers[0].Target))) result.ConcentratedTicks++;
+            }
             if (changed > 0) result.ChangedTicks++;
             if (changed >= 2) result.SimultaneousTicks++;
             int interceptors = after.Count(a => a.CurrentAction == ActionIds.Intercept);
             result.MaxInterceptors = Math.Max(result.MaxInterceptors, interceptors);
             result.InterceptAgentTicks += interceptors;
             // Passed interceptors prioritize recovery over a stationary attack.
-            bool inRange = before.Any(a => world.CanAct(a.Id) && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Intercept && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Waver && Distance(a.Position, player) <= world.GetAttackRange(a.Id, settings).Value);
+            bool inRange = before.Any(a => world.CanAct(a.Id) && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Intercept && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Waver && Distance(a.Position, duo ? TargetPosition(after.Single(b => b.Id.Equals(a.Id))) : player) <= world.GetAttackRange(a.Id, settings).Value);
             bool attacking = after.Any(a => a.CurrentAction == ActionIds.Attack && a.Target.HasValue
-                && Distance(a.Position, player) <= world.GetAttackRange(a.Id, settings).Value);
+                && Distance(a.Position, duo ? TargetPosition(after.Single(b => b.Id.Equals(a.Id))) : player) <= world.GetAttackRange(a.Id, settings).Value);
             if (attacking) result.AttackTicks++;
             residence = inRange ? residence + 1 : 0;
             noAttack = inRange && !attacking ? noAttack + 1 : 0;
@@ -249,6 +294,13 @@ public static class PuppetSimulation
         }
         result.Events = world.StateEvents.ToArray();
         return result;
+
+        Vec2 MoveAlong(Vec2 start, Vec2 end, int elapsedTicks)
+        {
+            double length = Distance(start, end);
+            double fraction = length == 0 ? 1 : Math.Min(1, scenario.DuoSpeed * elapsedTicks / settings.TicksPerSecond / length);
+            return new Vec2(start.X + (end.X - start.X) * fraction, start.Z + (end.Z - start.Z) * fraction);
+        }
 
         void Add(int id, TargetRole role, Vec2 position, Side side = Side.Puppets)
         {
@@ -278,11 +330,20 @@ public static class PuppetSimulation
                     $"{a.Id.Value}:{a.Role}/{a.CurrentAction}({a.Position.X:F2},{a.Position.Z:F2})"))) +
                 string.Join(" ", frame.States.Select(s => $" {s.Id.Value}:T={s.Tension:F3}/P={s.Posture:F1}/{s.Status}")) +
                 $" tune={frame.TuneTarget?.Value.ToString() ?? "-"} amount={frame.TuneAmount:F4} budget={frame.Budget:F3}");
+        if (result.TargetAgentTicks.Count > 1)
+            foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
+                output.WriteLine($"targets tick={frame.Tick} " + string.Join(" ", frame.Players.Select(a => FormattableString.Invariant($"player{a.Id.Value}=({a.Position.X:F2},{a.Position.Z:F2})"))) + " " +
+                    string.Join(" ", frame.Puppets.Select(a => $"{a.Id.Value}:{a.CurrentAction}->player{a.Target?.Value.ToString() ?? "-"}")));
         foreach (var e in result.Events)
             output.WriteLine(FormattableString.Invariant($"event tick={e.Tick} agent={e.AgentId.Value} {e.Kind} {e.Cause.Kind} {e.Before.Status}->{e.After.Status} value={e.ValueId} T={e.Before.Tension:F4}->{e.After.Tension:F4} P={e.Before.Posture:F2}->{e.After.Posture:F2} H={e.Before.Health:F2}->{e.After.Health:F2} reclaim={e.ReclaimedAmount:F3} budget={e.BudgetAfter:F3}"));
         output.WriteLine(FormattableString.Invariant(
             $"inactive={result.InactivityFailures} longestInactive={result.LongestInactiveTicks} flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs} jitter={result.JitterFailures} maxReversals/1s={string.Join(",", result.MaxDirectionReversals.Select(p => p.Key + ":" + p.Value))}"));
         output.WriteLine(result.InterceptAgentTicks == 0 ? "interceptQuality ticks=0 n/a(막아서기 없음)" :
             FormattableString.Invariant($"interceptQuality ticks={result.InterceptAgentTicks} settled={result.InterceptSettledTicks} within1m={result.InterceptQualityRatio:P1} mean={result.InterceptMeanDistance:F3}m travel={result.InterceptTravel:F3}m"));
+        if (result.TargetAgentTicks.Count > 1)
+            output.WriteLine(FormattableString.Invariant($"targetDistribution total={result.TargetedAgentTicks} ") +
+                string.Join(" ", result.TargetAgentTicks.Select(p => FormattableString.Invariant($"player{p.Key}={p.Value}({(result.TargetedAgentTicks == 0 ? 0 : (double)p.Value / result.TargetedAgentTicks):P1})"))) +
+                FormattableString.Invariant($" concentrated={result.ConcentratedTicks}/{result.NonHealerTargetTicks}({result.ConcentrationRatio:P1}) interceptTargets=") +
+                string.Join(",", result.InterceptTargetTicks.Select(p => $"{p.Key}:{p.Value}")));
     }
 }

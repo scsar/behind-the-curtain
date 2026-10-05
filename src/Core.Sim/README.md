@@ -91,3 +91,34 @@ Formation hold uses the positions captured when the brain is created; callers
 still place the front Guards and rear Healer. `DistanceScale` and
 `InterceptPositionFloor` remain accepted for source compatibility with T15 but
 no longer shape engage/intercept scores.
+
+### Two-player baseline (no learning)
+
+Run `dotnet run --project src/Core.Sim -- --puppets duo` or
+`dotnet run --project src/Core.Sim -- --puppets duo-swap`.
+Both add human Players A (id 1) and B (id 2). The previous encounter contains
+one observation of B attacking the healer. Core action rules are unchanged.
+The original seven scenarios still contain only A.
+
+Arbitrarily chosen prototype inputs live in `PuppetScenarioSettings`: A starts
+at (0,12), walks at 5m/s to (0,4), and stops; B starts at (9,-1).
+In duo-swap, at tick 150 (5 seconds at the default 30 ticks/s), both start
+straight paths to exchange positions at 5m/s. The 10.296m exchange takes
+about 2.059 seconds; it does not teleport them at 5 seconds.
+The regression checks interception against both B's current segment and its
+final destination segment by tick 210, two seconds after movement starts.
+
+For these paths, distance-based forbidden-pattern and intercept-quality metrics
+use each puppet's actual Target. Sample `targets` rows show both players and
+all puppet target ids. Final `targetDistribution` reports:
+
+- `total`: all puppet-ticks targeting a player (includes healer targets).
+- `playerN`: that player's puppet-ticks and fraction of total; zero total yields 0%.
+- `concentrated`: ticks where all non-healers target the same player, divided by
+  ticks where at least one non-healer has a target. A missing target prevents
+  concentration; healer targets do not affect this ratio.
+- `interceptTargets`: intercept puppet-ticks per player id.
+
+Metrics include ticks 0 through 300 (301 frames by default). These new scenarios
+are verified with default equipment and no stress. The original seven-scenario
+all-loadout regression keeps its original scope.

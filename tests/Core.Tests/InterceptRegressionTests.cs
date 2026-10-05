@@ -107,7 +107,7 @@ public class InterceptRegressionTests
     [Fact]
     public void AllScenariosAndLoadoutsPassForbiddenPatternsAndAreDeterministic()
     {
-        foreach (string name in PuppetSimulation.Names)
+        foreach (string name in new[] { "approach", "circle", "retreat", "healer", "standstill", "orbit", "passby" })
         foreach (string loadout in new[] {"presets","mixed","noprotect"})
         {
             var r = PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout);
