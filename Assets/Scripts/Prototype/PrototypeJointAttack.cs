@@ -238,7 +238,6 @@ namespace BehindTheCurtain.Prototype
             if (intermission && tick >= intermissionUntil)
             {
                 intermission = false;
-                encounterNumber++;
                 completedCycles = 0;
             }
             if (!intermission && attack == null && tick >= nextAttackTick)

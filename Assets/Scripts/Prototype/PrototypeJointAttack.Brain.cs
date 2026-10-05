@@ -8,6 +8,8 @@ namespace BehindTheCurtain.Prototype
     {
         private static readonly AgentId PlayerAgentId = new AgentId(1);
         private PuppetBrain brain;
+        private PuppetSettings brainTuning;
+        private string castingSummary;
         private Vector3[] previousPositions;
         private Quaternion[] previousRotations;
         private long[] attackReadyTicks;
@@ -16,12 +18,12 @@ namespace BehindTheCurtain.Prototype
 
         private static AgentId PuppetAgentId(int index) => new AgentId(10 + index);
         private static Vec2 Planar(Vector3 value) => new Vec2(value.x, value.z);
-        private static TargetRole PuppetRole(int index) => index < 2 ? TargetRole.Guard
+        private static TargetRole LegacyPuppetRole(int index) => index < 2 ? TargetRole.Guard
             : index == 3 ? TargetRole.Healer : TargetRole.Attacker;
 
-        private bool BrainFailure(AiFailure failure)
+        private bool BrainFailure(AiFailure failure, string context = "PuppetBrain")
         {
-            lastReason = $"PuppetBrain rejected: {failure}";
+            lastReason = $"{context} rejected: {failure}";
             Debug.LogError(lastReason, this);
             enabled = false;
             return false;
@@ -29,18 +31,25 @@ namespace BehindTheCurtain.Prototype
 
         private bool InitializeBrain()
         {
-            ApplyFormation();
+            if (settings.Lineups == null || settings.Lineups.Length == 0)
+                return BrainFailure(AiFailure.InvalidSettings, "Lineups");
+            var lineup = settings.Lineups[(encounterNumber - 1) % settings.Lineups.Length];
+            if (lineup == null || lineup.Puppets == null || lineup.Puppets.Length != puppets.Length)
+                return BrainFailure(AiFailure.InvalidSettings, "Lineup (requires four slots)");
+            ApplyFormation(false);
             var world = expedition.EncounterWorld;
             var added = world.Add(new AgentState(PlayerAgentId, Side.Players, true, TargetRole.Attacker,
                 Planar(player.position), Planar(player.forward), settings.PlayerRadius));
             if (!added.Success) return BrainFailure(added.Failure);
-            previousPositions = (Vector3[])restPositions.Clone();
-            previousRotations = (Quaternion[])restRotations.Clone();
             attackReadyTicks = new long[puppets.Length];
             for (var i = 0; i < puppets.Length; i++)
             {
-                added = world.Add(new AgentState(PuppetAgentId(i), Side.Puppets, false, PuppetRole(i),
-                    Planar(restPositions[i]), Planar(restRotations[i] * Vector3.forward), settings.PuppetSize / 2f));
+                var selectedLoadout = Loadout.Create(lineup.Puppets[i]?.EquipmentIds);
+                if (!selectedLoadout.Success)
+                    return BrainFailure(selectedLoadout.Failure, $"Lineup {lineup.Name}, Puppet {PuppetAgentId(i).Value} Loadout");
+                added = world.AddWithLoadout(new AgentState(PuppetAgentId(i), Side.Puppets, false,
+                    settings.UseDirectorCasting ? TargetRole.Attacker : LegacyPuppetRole(i),
+                    Planar(restPositions[i]), Planar(restRotations[i] * Vector3.forward), settings.PuppetSize / 2f), selectedLoadout.Value);
                 if (!added.Success) return BrainFailure(added.Failure);
                 attackReadyTicks[i] = clock.Tick;
                 var loadout = world.GetLoadout(PuppetAgentId(i));
@@ -51,15 +60,36 @@ namespace BehindTheCurtain.Prototype
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];
             }
+            if (settings.UseDirectorCasting)
+            {
+                var casting = DirectorCasting.Assign(world, new DirectorCastingSettings(settings.DirectorGuardCount));
+                if (!casting.Success) return BrainFailure(casting.Failure, "DirectorCasting");
+            }
+            ApplyFormation(true);
+            castingSummary = $"교전 {encounterNumber} 라인업 {lineup.Name} | " +
+                (settings.UseDirectorCasting ? "연출가 배분" : "자리 배분");
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                var positioned = world.UpdatePosition(PuppetAgentId(i), Planar(restPositions[i]),
+                    Planar(restRotations[i] * Vector3.forward));
+                if (!positioned.Success) return BrainFailure(positioned.Failure);
+                puppets[i].SetPositionAndRotation(restPositions[i], restRotations[i]);
+                SetMaterialColor(puppetMaterials[i], PuppetColor(i));
+                castingSummary += $" | {PuppetAgentId(i).Value}:{positioned.Value.Role}";
+            }
+            previousPositions = (Vector3[])restPositions.Clone();
+            previousRotations = (Quaternion[])restRotations.Clone();
             var tuning = new PuppetSettings(settings.PuppetInterceptDistance, settings.PuppetSpreadDistance,
                 settings.PuppetAttackRange, settings.PuppetMoveSpeed,
                 settings.FloorSize / 2f - settings.PuppetSize / 2f, PrototypeSettings.TicksPerSecond,
                 settings.PuppetDistanceScale, settings.PuppetApproachWeight, settings.PuppetInterceptWeight,
                 settings.PuppetSpreadWeight, settings.PuppetHoldWeight, settings.PuppetAttackWeight,
-                settings.PuppetInterceptPositionFloor, settings.PuppetPersistenceBonus);
+                settings.PuppetInterceptPositionFloor, settings.PuppetPersistenceBonus,
+                midAttackRange: settings.PuppetMidAttackRange, rangedAttackRange: settings.PuppetRangedAttackRange);
             var created = PuppetBrain.Create(world, tuning, new DeterministicRandom(unchecked((ulong)settings.Seed)));
             if (!created.Success) return BrainFailure(created.Failure);
             brain = created.Value;
+            brainTuning = tuning;
             if (brainLines == null)
             {
                 brainLines = new LineRenderer[puppets.Length];
@@ -127,6 +157,15 @@ namespace BehindTheCurtain.Prototype
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
                 var decision = brain.GetDecision(agent.Id);
                 var text = $"{agent.Id.Value}: {agent.CurrentAction ?? "pending"} | target {agent.Target?.Value.ToString() ?? "-"}";
+                var contract = RoleContract.ForRole(agent.Role);
+                var kind = contract.Classify(agent.CurrentAction);
+                var classification = kind == ContractActionKind.Primary ? "우선"
+                    : kind == ContractActionKind.Alternative ? "대체" : "계약 밖";
+                var loadout = expedition.EncounterWorld.GetLoadout(agent.Id).Value;
+                var state = expedition.EncounterWorld.GetPuppetState(agent.Id).Value;
+                text += $"\n배역 {agent.Role} | 목표 {contract.Goal}\n계약: {classification}";
+                text += $"\n능력: {(loadout.Capabilities.Count == 0 ? "-" : string.Join(", ", loadout.Capabilities))} | 장력 {state.Tension:F2}";
+                text += $"\n공격 거리 {loadout.GetAttackRange(brainTuning):F2} | 이동 배율 {loadout.MoveSpeedScale:F2}";
                 if (decision.Success)
                 {
                     var scores = new List<ActionScore>(decision.Value.Selection.Scores);

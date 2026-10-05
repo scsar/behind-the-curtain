@@ -64,6 +64,7 @@ namespace BehindTheCurtain.Prototype
                 enabled = false;
                 return false;
             }
+            encounterNumber++;
             if (!InitializeBrain()) return false;
             intermission = true;
             intermissionUntil = tick + settings.IntermissionTicks;
@@ -81,11 +82,14 @@ namespace BehindTheCurtain.Prototype
             {
                 baseOffsets[i] = restPositions[i] - partyCenter;
                 puppetMaterials[i] = puppets[i].GetComponent<Renderer>().sharedMaterial;
-                SetMaterialColor(puppetMaterials[i], i == 3 ? settings.HealerColor : settings.PuppetColor);
+                SetMaterialColor(puppetMaterials[i], settings.PuppetColor);
             }
         }
 
-        private void ApplyFormation()
+        private Color PuppetColor(int index) => expedition.EncounterWorld.Get(PuppetAgentId(index)).Value.Role
+            == TargetRole.Healer ? settings.HealerColor : settings.PuppetColor;
+
+        private void ApplyFormation(bool useAssignedRoles)
         {
             // Always rebuild from the original offsets, never from rotated/advanced positions.
             partyCenter = basePartyCenter;
@@ -95,12 +99,27 @@ namespace BehindTheCurtain.Prototype
             var formationRotation = facing * Quaternion.Inverse(Quaternion.LookRotation(Vector3.back));
             if (tactic.Id == TacticId.ShieldAdvance)
                 partyCenter += towardPlayer * settings.ShieldAdvanceDistance;
+            var healerIndex = -1;
+            var rearGuardIndex = -1;
+            var guardCount = 0;
+            if (useAssignedRoles && tactic.Id == TacticId.GuardHealer)
+            {
+                for (var i = 0; i < puppets.Length; i++)
+                {
+                    var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
+                    if (agent.Role == TargetRole.Healer && healerIndex < 0) healerIndex = i;
+                    if (agent.Role != TargetRole.Guard) continue;
+                    guardCount++;
+                    if (rearGuardIndex < 0 || agent.Id.Value > PuppetAgentId(rearGuardIndex).Value)
+                        rearGuardIndex = i;
+                }
+            }
             for (var i = 0; i < puppets.Length; i++)
             {
                 var offset = baseOffsets[i];
                 if (tactic.Id == TacticId.SpreadFormation) offset *= settings.SpreadSpacingMultiplier;
-                if (tactic.Id == TacticId.GuardHealer && i == 1)
-                    offset = baseOffsets[3] + Vector3.back * settings.GuardHealerOffset;
+                if (healerIndex >= 0 && guardCount >= 2 && i == rearGuardIndex)
+                    offset = baseOffsets[healerIndex] + Vector3.back * settings.GuardHealerOffset;
                 restPositions[i] = partyCenter + formationRotation * offset;
                 restRotations[i] = facing;
             }
@@ -122,7 +141,7 @@ namespace BehindTheCurtain.Prototype
             }
             for (var i = 0; i < puppets.Length; i++)
                 SetMaterialColor(puppetMaterials[i], feedbackTick < puppetFlashUntil[i] ? Color.white :
-                    i == 3 ? settings.HealerColor : settings.PuppetColor);
+                    PuppetColor(i));
             attackLabels.RemoveAll(label => feedbackTick - label.Start >= settings.AttackLabelTicks);
         }
 
@@ -134,7 +153,7 @@ namespace BehindTheCurtain.Prototype
             {
                 var offset = Vector3.ProjectOnPlane(puppets[i].position - player.position, Vector3.up);
                 targets[i] = new AttackTarget(offset.magnitude, Vector3.Angle(aim, offset),
-                    i < 2 ? TargetRole.Guard : i == 3 ? TargetRole.Healer : TargetRole.Attacker);
+                    expedition.EncounterWorld.Get(PuppetAgentId(i)).Value.Role);
             }
             // Core's legacy resolver records anonymously. Use a scratch observer, then
             // attach identity once to the encounter observer without duplicating hit rules.
@@ -193,8 +212,10 @@ namespace BehindTheCurtain.Prototype
             if (debugOverlay && intermission)
             {
                 var memory = expedition.Memory.Value;
-                GUI.Box(new Rect(Screen.width / 2f - 300f, Screen.height / 2f - 45f, 600f, 90f),
-                    $"연출가가 각본을 고친다: {tactic.Id}\n다음 교전 원정 기억\n" +
+                GUI.Box(new Rect(Screen.width / 2f - settings.CastingSummaryWidth / 2f,
+                    Screen.height / 2f - settings.CastingSummaryHeight / 2f,
+                    settings.CastingSummaryWidth, settings.CastingSummaryHeight),
+                    $"연출가가 각본을 고친다: {tactic.Id}\n{castingSummary}\n다음 교전 원정 기억\n" +
                     $"광역 의존 {memory.AreaDependency:P0} | 힐러 집중 {memory.HealerFocus:P0} | 원거리 지속 {memory.SustainedRangedRatio:P0}");
             }
             if (Camera.main == null) return;

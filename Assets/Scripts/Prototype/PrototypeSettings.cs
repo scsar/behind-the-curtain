@@ -4,9 +4,44 @@ using UnityEngine;
 namespace BehindTheCurtain.Prototype
 {
     [Serializable]
+    public sealed class PrototypePuppetEquipment
+    {
+        public string[] EquipmentIds;
+        public PrototypePuppetEquipment(params string[] ids) { EquipmentIds = ids; }
+    }
+
+    [Serializable]
+    public sealed class PrototypeLineup
+    {
+        public string Name;
+        // Front left, front right, rear left, rear right.
+        public PrototypePuppetEquipment[] Puppets;
+        public PrototypeLineup(string name, params PrototypePuppetEquipment[] puppets)
+        { Name = name; Puppets = puppets; }
+    }
+
+    [Serializable]
     public sealed class PrototypeSettings
     {
         public const int TicksPerSecond = 30;
+        public bool UseDirectorCasting = true;
+        // Provisional, arbitrarily chosen lineup and casting/range/presentation tuning.
+        public int DirectorGuardCount = 2;
+        public PrototypeLineup[] Lineups = {
+            new PrototypeLineup("A", new PrototypePuppetEquipment("weapon.melee", "armor.shield"),
+                new PrototypePuppetEquipment("weapon.melee", "armor.shield"),
+                new PrototypePuppetEquipment("weapon.melee"), new PrototypePuppetEquipment("weapon.short", "tool.mender")),
+            new PrototypeLineup("B", new PrototypePuppetEquipment("weapon.melee", "armor.heavyShield"),
+                new PrototypePuppetEquipment("weapon.melee"),
+                new PrototypePuppetEquipment("weapon.spear"), new PrototypePuppetEquipment("weapon.short", "tool.mender")),
+            new PrototypeLineup("C", new PrototypePuppetEquipment("weapon.melee"),
+                new PrototypePuppetEquipment("weapon.spear"),
+                new PrototypePuppetEquipment("weapon.bow"), new PrototypePuppetEquipment("weapon.short", "tool.mender"))
+        };
+        public float PuppetMidAttackRange = 3.5f;
+        public float PuppetRangedAttackRange = 8f;
+        public float CastingSummaryWidth = 780f;
+        public float CastingSummaryHeight = 112f;
         // Requested expedition defaults; cone/formation/text tuning is provisional.
         public int EncounterCycles = 3;
         public int IntermissionTicks = 2 * TicksPerSecond;
@@ -41,8 +76,8 @@ namespace BehindTheCurtain.Prototype
         public float PuppetInterceptPositionFloor = 0.6f;
         public float PuppetPersistenceBonus = 0.02f;
         public float BrainLabelHeight = 1.5f;
-        public float BrainLabelWidth = 240f;
-        public float BrainLabelPanelHeight = 100f;
+        public float BrainLabelWidth = 340f;
+        public float BrainLabelPanelHeight = 160f;
         public Color BrainGoalColor = Color.cyan;
         public int SlamWarningTicks = 24;
         public float SlamRadius = 2f;
