@@ -16,8 +16,9 @@ namespace BehindTheCurtain.Core
             double keepDistanceWeight = 1.2, double passiveInterceptScale = 0.02, double keepDistanceSpeed = 6,
             double attackArrivalMargin = 0.05, double guardRearOffset = 2,
             double guardHoldScale = 3,
-            IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights = null)
+            IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights = null, double individualThreatInterceptScale = 0.5)
         {
+            IndividualThreatInterceptScale = individualThreatInterceptScale;
             GuardRearOffset = guardRearOffset; GuardHoldScale = guardHoldScale;
             KeepDistanceSpeed = keepDistanceSpeed; AttackArrivalMargin = attackArrivalMargin;
             ThreatRadius = threatRadius; KeepMin = keepMin; KeepMax = keepMax;
@@ -58,6 +59,8 @@ namespace BehindTheCurtain.Core
         public double WeightJitter { get; }
         public int ReevaluationIntervalTicks { get; }
         public double KeepDistanceWeight { get; }
+        // Provisional, arbitrarily chosen individual threat weight.
+        public double IndividualThreatInterceptScale { get; }
         public double PassiveInterceptScale { get; }
         // Provisional role table. Zero disables the default, but explicit role intentions can enable it.
         public IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>> RoleWeights { get; }
@@ -86,7 +89,7 @@ namespace BehindTheCurtain.Core
         public double AttackWeight { get; }
         public double InterceptPositionFloor { get; }
         public double PersistenceBonus { get; }
-        internal bool IsValid => ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0
+        internal bool IsValid => AiNumber.Weight(IndividualThreatInterceptScale) && ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0
             && AttackArrivalMargin < AttackRange && Positive(ThreatRadius) && Positive(KeepMin) && KeepMax > KeepMin
             && AiNumber.Finite(KeepMax) && WeightJitter >= 0 && WeightJitter < 1
             && ReevaluationIntervalTicks > 0 && Positive(KeepDistanceWeight) && AiNumber.Weight(PassiveInterceptScale)

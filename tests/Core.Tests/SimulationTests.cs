@@ -34,9 +34,12 @@ public class SimulationTests
         Assert.Equal("Settings Seed=1 Encounters=3 Decay=0.5 AreaThreshold=0.5 HealerThreshold=0.5 RangedThreshold=0.5 Strategies=Alternating(AreaFirst,HealerFirst)", allLines[0].TrimEnd());
         var lines = allLines[1..];
         Assert.Equal(3, lines.Length);
-        Assert.StartsWith("Encounter 1 [AreaFirst] Area=0.70", lines[0]);
-        Assert.StartsWith("Encounter 2 [HealerFirst] Area=0.00", lines[1]);
-        Assert.StartsWith("Encounter 3 [AreaFirst] Area=0.70", lines[2]);
+        Assert.StartsWith("Encounter 1 [AreaFirst] Stage=", lines[0]);
+        Assert.Contains("Area=0.70", lines[0]);
+        Assert.StartsWith("Encounter 2 [HealerFirst] Stage=", lines[1]);
+        Assert.Contains("Area=0.00", lines[1]);
+        Assert.StartsWith("Encounter 3 [AreaFirst] Stage=", lines[2]);
+        Assert.Contains("Area=0.70", lines[2]);
         Assert.Contains("NextTactic=SpreadFormation", lines[0]);
         // Current healer focus alone would choose GuardHealer; expedition memory changes that choice.
         Assert.Contains("NextTactic=SpreadFormation", lines[1]);

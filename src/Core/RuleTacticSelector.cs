@@ -37,6 +37,16 @@ namespace BehindTheCurtain.Core
             return selected;
         }
 
+        public System.Collections.Generic.IReadOnlyDictionary<TacticId, double> GetStrengths(BehaviorProfile profile)
+            => new System.Collections.ObjectModel.ReadOnlyDictionary<TacticId, double>(
+                new System.Collections.Generic.Dictionary<TacticId, double> {
+                    [TacticId.SpreadFormation] = Strength(profile.AreaDependency, settings.AreaDependencyThreshold),
+                    [TacticId.GuardHealer] = Strength(profile.HealerFocus, settings.HealerFocusThreshold),
+                    [TacticId.ShieldAdvance] = Strength(profile.SustainedRangedRatio, settings.SustainedRangedThreshold) });
+
+        private double Strength(double value, double threshold) => value < threshold ? 0
+            : threshold == 1 ? 1 : settings.BlendFloor + (1 - settings.BlendFloor) * (value - threshold) / (1 - threshold);
+
         private static void Consider(double tendency, double threshold, Tactic candidate,
             ref Tactic selected, ref double bestMargin)
         {

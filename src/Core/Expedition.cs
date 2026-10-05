@@ -13,6 +13,8 @@ namespace BehindTheCurtain.Core
             new ReadOnlyDictionary<AgentId, BehaviorProfile>(individualMemory);
         /// <summary>A fresh world per encounter. Director decisions are written only on successful start.</summary>
         public World? EncounterWorld { get; private set; }
+        private readonly Dictionary<string, double> previousIntentions = new Dictionary<string, double>();
+        public IReadOnlyDictionary<string, double> PreviousIntentions => new ReadOnlyDictionary<string, double>(previousIntentions);
         private bool encounterActive;
         private bool ended;
 
@@ -20,6 +22,8 @@ namespace BehindTheCurtain.Core
         {
             this.settings = settings;
             this.selector = selector;
+            foreach (var table in settings.Intentions.Tables.Values)
+                foreach (var key in table.Keys) previousIntentions[key] = 1;
         }
 
         /// <summary>Null means no encounter has completed, or the expedition has ended.</summary>
@@ -36,6 +40,22 @@ namespace BehindTheCurtain.Core
             return true;
         }
 
+        public ExpeditionMemorySnapshot CreateCarryOverSnapshot()
+        {
+            var profiles = new Dictionary<AgentId, BehaviorProfile>();
+            foreach (var pair in individualMemory) profiles[pair.Key] = pair.Value.Scale(settings.CarryOverRatio);
+            return new ExpeditionMemorySnapshot(profiles);
+        }
+
+        public static bool TryCreate(ExpeditionSettings? settings, ITacticSelector? selector,
+            ExpeditionMemorySnapshot? snapshot, out Expedition? expedition)
+        {
+            if (!TryCreate(settings, selector, out expedition)) return false;
+            if (snapshot != null)
+                foreach (var pair in snapshot.IndividualMemory) expedition!.individualMemory.Add(pair.Key, pair.Value);
+            return true;
+        }
+
         /// <summary>The first encounter uses StandardFormation with no additional preparation ticks.</summary>
         public bool TryStartEncounter(out Tactic tactic)
         {
@@ -46,7 +66,16 @@ namespace BehindTheCurtain.Core
                 : new Tactic(TacticId.StandardFormation, TacticWeakness.None, 0);
             EncounterWorld = new World();
             var board = EncounterWorld.GetBlackboard(Side.Puppets).Value;
-            foreach (var pair in settings.Intentions.Tables[tactic.Id]) board.SetIntention(pair.Key, pair.Value);
+            var targets = settings.Intentions.Blend(Memory.HasValue ? selector.GetStrengths(Memory.Value)
+                : new Dictionary<TacticId, double>());
+            foreach (var pair in targets)
+            {
+                var previous = previousIntentions[pair.Key];
+                var shift = System.Math.Max(-settings.MaxIntentShiftPerEncounter,
+                    System.Math.Min(settings.MaxIntentShiftPerEncounter, pair.Value - previous));
+                previousIntentions[pair.Key] = previous + shift;
+                board.SetIntention(pair.Key, previous + shift);
+            }
             board.SetFact("tactic", tactic.Id);
             SetThreat(board, TargetFactIds.HealerThreat, TendencyId.HealerFocus);
             SetThreat(board, TargetFactIds.RangedThreat, TendencyId.SustainedRanged);
@@ -87,7 +116,11 @@ namespace BehindTheCurtain.Core
                 if (value > highest || (value > 0 && value == highest && best.HasValue && pair.Key.Value < best.Value.Value))
                 { best = pair.Key; highest = value; }
             }
-            if (best.HasValue && highest >= settings.ThreatFactThreshold) board.SetFact(key, best.Value);
+            if (best.HasValue && highest >= settings.ThreatFactThreshold)
+            {
+                board.SetFact(key, best.Value);
+                if (key == TargetFactIds.HealerThreat) board.SetFact(TargetFactIds.HealerThreatStrength, highest);
+            }
         }
 
         /// <summary>Clears memory, discards any active encounter, and permanently closes this expedition.</summary>
@@ -95,6 +128,7 @@ namespace BehindTheCurtain.Core
         {
             Memory = null;
             individualMemory.Clear();
+            previousIntentions.Clear();
             EncounterWorld = null;
             encounterActive = false;
             ended = true;

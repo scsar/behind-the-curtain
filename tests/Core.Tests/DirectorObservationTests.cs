@@ -61,10 +61,10 @@ public sealed class DirectorObservationTests
     }
     [Theory]
     [InlineData(TacticId.StandardFormation, 1, 1, 1, 1)]
-    [InlineData(TacticId.SpreadFormation, 1, 1, 2, 0.7)]
-    [InlineData(TacticId.GuardHealer, 1, 2.5, 1, 1)]
-    [InlineData(TacticId.ShieldAdvance, 2, 1, 1, 0.5)]
-    public void TacticIntentionsArePublishedAndRemainStable(TacticId expected, double approach, double intercept, double spread, double hold)
+    [InlineData(TacticId.SpreadFormation, 1, 1, 1.75, 0.7)]
+    [InlineData(TacticId.GuardHealer, 1, 1.75, 1, 1)]
+    [InlineData(TacticId.ShieldAdvance, 1.75, 1, 1, 0.5)]
+    public void BlendedIntentionsAreShiftLimitedAndRemainStable(TacticId expected, double approach, double intercept, double spread, double hold)
     {
         var expedition = Expedition();
         expedition.TryStartEncounter(out _);
@@ -168,6 +168,6 @@ public sealed class DirectorObservationTests
         observer.Observe(Attack(1, area: true));
         expedition.EndEncounterWithIndividuals(observer.EndEncounterWithIndividuals());
         expedition.TryStartEncounter(out _);
-        Assert.Equal(4, expedition.EncounterWorld!.GetBlackboard(Side.Puppets).Value.GetIntention(ActionIds.Spread).Value);
+        Assert.Equal(1.75, expedition.EncounterWorld!.GetBlackboard(Side.Puppets).Value.GetIntention(ActionIds.Spread).Value);
     }
 }

@@ -52,7 +52,10 @@ namespace BehindTheCurtain.Core
                 var reservation = c.Blackboard.GetReservation("intercept:" + healer.Id.Value, c.Tick);
                 if (reservation.Success && !reservation.Value.Owner.Equals(c.Agent.Id)) return 0;
                 var tactic = c.Blackboard.GetFact<TacticId>("tactic");
-                return tactic.Success && tactic.Value == TacticId.GuardHealer ? 1 : settings.PassiveInterceptScale;
+                var strength = c.Blackboard.GetFact<double>(TargetFactIds.HealerThreatStrength);
+                return tactic.Success && tactic.Value == TacticId.GuardHealer ? 1
+                    : Math.Max(settings.PassiveInterceptScale, (strength.Success ? AiNumber.Clamp(strength.Value) : 0)
+                        * settings.IndividualThreatInterceptScale);
             }
             var nearest = Nearest(c, a => a.Side == Side.Puppets && !a.Id.Equals(c.Agent.Id));
             return nearest == null ? 0 : AiNumber.Clamp(1 - Distance(c.Agent.Position, nearest.Position) / settings.SpreadDistance);

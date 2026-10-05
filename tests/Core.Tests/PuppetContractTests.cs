@@ -30,7 +30,7 @@ public sealed class PuppetContractTests
         if (!custom)
         {
             Assert.Equal(0, result.FleeTicks);
-            if (name != "healer") Assert.True(result.InterceptRatio < limits.InterceptLimit);
+            if (!result.HasHealerThreat) Assert.True(result.InterceptRatio < limits.InterceptLimit);
         }
         else
         {
@@ -225,6 +225,8 @@ public sealed class PuppetContractTests
         Add(world, 1, TargetRole.Attacker, new Vec2(9, 0), Side.Players);
         Add(world, 10, TargetRole.Attacker, new Vec2(0, 0));
         world.GetBlackboard(Side.Puppets).Value.SetIntention(ActionIds.Approach, 10);
+        // Explicit runtime role intention; the first encounter now starts at neutral multipliers.
+        world.GetBlackboard(Side.Puppets).Value.SetIntention("Attacker:approach", 0);
         var brain = PuppetBrain.Create(world, new PuppetSettings(), new DeterministicRandom(1)).Value;
         brain.Tick(0);
         Assert.Equal(0, brain.GetDecision(new AgentId(10)).Value.Selection.Scores.Single(s => s.ActionId == ActionIds.Approach).Score);

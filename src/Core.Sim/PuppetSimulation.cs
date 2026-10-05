@@ -52,6 +52,7 @@ public sealed class PuppetTrajectory
     public int ChangedTicks { get; internal set; }
     public int SimultaneousTicks { get; internal set; }
     public double SimultaneousRatio => ChangedTicks == 0 ? 0 : (double)SimultaneousTicks / ChangedTicks;
+    public bool HasHealerThreat { get; internal set; }
     public int MaxInterceptors { get; internal set; }
     public int InterceptAgentTicks { get; internal set; }
     public double InterceptRatio => (double)InterceptAgentTicks / (Frames.Count * Frames[0].Puppets.Length);
@@ -94,7 +95,7 @@ public static class PuppetSimulation
         Add(12, TargetRole.Attacker, scenario.AttackerStart);
         Add(13, TargetRole.Healer, scenario.HealerStart);
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(seed), profile ?? new DirectorProfile()).Value;
-        var result = new PuppetTrajectory();
+        var result = new PuppetTrajectory { HasHealerThreat = world.GetBlackboard(Side.Puppets).Value.GetFact<AgentId>(TargetFactIds.HealerThreat).Success };
         var outside = new Dictionary<int, int>();
         var histories = new Dictionary<int, List<string?>>();
         int residence = 0, noAttack = 0;

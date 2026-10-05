@@ -44,6 +44,12 @@ namespace BehindTheCurtain.Core
             }
         }
 
+        internal BehaviorProfile Scale(double ratio)
+        {
+            var scaled = new Dictionary<TendencyId, double>();
+            foreach (var pair in Values) scaled[pair.Key] = pair.Value * ratio;
+            return new BehaviorProfile(scaled, HasAttacks);
+        }
         internal BehaviorProfile Merge(BehaviorProfile current, ExpeditionSettings settings)
         {
             var merged = new Dictionary<TendencyId, double>();

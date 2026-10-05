@@ -15,8 +15,10 @@ namespace BehindTheCurtain.Core
             long spreadFormationPreparationTickCost = DefaultSpreadFormationPreparationTickCost,
             long guardHealerPreparationTickCost = DefaultGuardHealerPreparationTickCost,
             long shieldAdvancePreparationTickCost = DefaultShieldAdvancePreparationTickCost,
-            long standardFormationPreparationTickCost = DefaultStandardFormationPreparationTickCost)
+            long standardFormationPreparationTickCost = DefaultStandardFormationPreparationTickCost,
+            double blendFloor = 0.5)
         {
+            BlendFloor = blendFloor;
             AreaDependencyThreshold = areaDependencyThreshold;
             HealerFocusThreshold = healerFocusThreshold;
             SustainedRangedThreshold = sustainedRangedThreshold;
@@ -26,6 +28,8 @@ namespace BehindTheCurtain.Core
             StandardFormationPreparationTickCost = standardFormationPreparationTickCost;
         }
 
+        // Provisional, arbitrarily chosen blending floor.
+        public double BlendFloor { get; }
         public double AreaDependencyThreshold { get; }
         public double HealerFocusThreshold { get; }
         public double SustainedRangedThreshold { get; }
@@ -34,7 +38,7 @@ namespace BehindTheCurtain.Core
         public long ShieldAdvancePreparationTickCost { get; }
         public long StandardFormationPreparationTickCost { get; }
 
-        internal bool IsValid => IsThreshold(AreaDependencyThreshold)
+        internal bool IsValid => IsThreshold(BlendFloor) && IsThreshold(AreaDependencyThreshold)
             && IsThreshold(HealerFocusThreshold) && IsThreshold(SustainedRangedThreshold)
             && SpreadFormationPreparationTickCost >= 0 && GuardHealerPreparationTickCost >= 0
             && ShieldAdvancePreparationTickCost >= 0 && StandardFormationPreparationTickCost >= 0;

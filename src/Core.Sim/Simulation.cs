@@ -141,12 +141,13 @@ public static class Simulation
                 else attack.Advance(attack.ExecutionTick);
             }
 
-            var profile = observer!.EndEncounter();
-            if (!expedition.EndEncounter(profile)) return Fail(error);
+            var observation = observer!.EndEncounterWithIndividuals();
+            var profile = observation.PartyProfile;
+            if (!expedition.EndEncounterWithIndividuals(observation)) return Fail(error);
             var memory = expedition.Memory!.Value;
             var nextTactic = selector!.Select(memory);
             output.WriteLine(FormattableString.Invariant(
-                $"Encounter {index + 1} [{strategy}] Area={profile.AreaDependency:F2} Healer={profile.HealerFocus:F2} Ranged={profile.SustainedRangedRatio:F2} NextTactic={nextTactic.Id} Counter={successes}/{JointAttacksPerEncounter} Memory Area={memory.AreaDependency:F2} Healer={memory.HealerFocus:F2} Ranged={memory.SustainedRangedRatio:F2}"));
+                $"Encounter {index + 1} [{strategy}] Stage={tactic.Id} Intent approach={expedition.PreviousIntentions[ActionIds.Approach]:F2} intercept={expedition.PreviousIntentions[ActionIds.Intercept]:F2} spread={expedition.PreviousIntentions[ActionIds.Spread]:F2} hold={expedition.PreviousIntentions[ActionIds.Hold]:F2} HealerThreatStrength={expedition.EncounterWorld!.GetBlackboard(Side.Puppets).Value.GetFact<double>(TargetFactIds.HealerThreatStrength).Value:F2} Area={profile.AreaDependency:F2} Healer={profile.HealerFocus:F2} Ranged={profile.SustainedRangedRatio:F2} NextTactic={nextTactic.Id} Counter={successes}/{JointAttacksPerEncounter} Memory Area={memory.AreaDependency:F2} Healer={memory.HealerFocus:F2} Ranged={memory.SustainedRangedRatio:F2}"));
         }
         expedition!.EndExpedition();
         return 0;
@@ -169,7 +170,7 @@ public static class Simulation
         random.Shuffle(attacks);
         for (var i = 0; i < attacks.Length; i++)
             attacks[i] = new AttackEvent(attacks[i].AreaHitCount, attacks[i].PrimaryTargetRole,
-                attacks[i].Range, startTick + i);
+                attacks[i].Range, startTick + i, new AgentId(1), true);
         return attacks;
     }
 

@@ -11,6 +11,7 @@ namespace BehindTheCurtain.Core
     }
     public static class TargetFactIds
     {
+        public const string HealerThreatStrength = "target.healerThreat.strength";
         public const string HealerThreat = "target.healerThreat", RangedThreat = "target.rangedThreat";
     }
     public sealed class IntentionSettings
@@ -34,6 +35,21 @@ namespace BehindTheCurtain.Core
                 tables[id] = new ReadOnlyDictionary<string, double>(table);
             }
             Tables = new ReadOnlyDictionary<TacticId, IReadOnlyDictionary<string, double>>(tables);
+        }
+        public IReadOnlyDictionary<string, double> Blend(IReadOnlyDictionary<TacticId, double> strengths)
+        {
+            var result = new Dictionary<string, double>();
+            foreach (var table in Tables.Values)
+                foreach (var key in table.Keys) result[key] = 1;
+            foreach (var key in new List<string>(result.Keys))
+            {
+                double target = 1;
+                foreach (var table in Tables)
+                    if (table.Key != TacticId.StandardFormation && strengths.TryGetValue(table.Key, out var strength)
+                        && table.Value.TryGetValue(key, out var weight)) target += strength * (weight - 1);
+                result[key] = System.Math.Max(0, target);
+            }
+            return new ReadOnlyDictionary<string, double>(result);
         }
         public IReadOnlyDictionary<TacticId, IReadOnlyDictionary<string, double>> Tables { get; }
         internal bool IsValid
