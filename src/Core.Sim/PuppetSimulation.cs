@@ -269,7 +269,7 @@ public static class PuppetSimulation
                 var keepScore = brain.GetDecision(a.Id).Value.Selection.Scores.Single(s => s.ActionId == ActionIds.KeepDistance);
                 bool keepEnabled = keepScore.IntentionMultiplier > 0 &&
                     (settings.GetRoleWeight(a.Role, ActionIds.KeepDistance) > 0 || keepScore.Product > 0);
-                if (a.CurrentAction != ActionIds.Intercept && !(a.CurrentAction == ActionIds.Harass && phase == HarassPhase.Withdraw) && !keepEnabled && oldDistance <= settings.ThreatRadius && distance > oldDistance + scenario.Epsilon
+                if (a.CurrentAction != ActionIds.Intercept && a.CurrentAction != ActionIds.Pressure && !(a.CurrentAction == ActionIds.Harass && phase == HarassPhase.Withdraw) && !keepEnabled && oldDistance <= settings.ThreatRadius && distance > oldDistance + scenario.Epsilon
                     && !(a.CurrentAction == ActionIds.Spread && distance - oldDistance <= scenario.SpreadAllowance)) result.FleeTicks++;
                 if (keepEnabled)
                 {

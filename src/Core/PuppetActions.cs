@@ -24,7 +24,8 @@ namespace BehindTheCurtain.Core
                 if (id == ActionIds.Pressure && (role != TargetRole.Guard || loadout.HasCapability(CapabilityTag.Protect))) continue;
                 double weight = RoleContract.ForRole(role).EffectiveWeight(settings, loadout, id);
                 double preference = id == ActionIds.Flank ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.FlankNonMeleeScale)
-                    : id == ActionIds.Harass ? (loadout.RangeBand == RangeBand.Melee ? settings.HarassMeleeScale : 1) : 1;
+                    : id == ActionIds.Harass ? (loadout.RangeBand == RangeBand.Melee ? settings.HarassMeleeScale : 1)
+                    : id == ActionIds.Approach ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.ApproachNonMeleeScale) : 1;
                 double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
                 // Capability eligibility is checked before role/situation. Intercept has no pull share.
                 // A role-specific intention explicitly enables a default-zero candidate at unit weight.
@@ -157,7 +158,11 @@ namespace BehindTheCurtain.Core
                 // Escape radially first; crossing the threat to reach a guard is never safe.
                 if (distance < settings.KeepMin)
                     direction = Direction(human.Position, c.Agent.Position, new Vec2(0, -1));
-                if (guard == null && distance >= settings.KeepMin && distance <= settings.KeepMax)
+                var radialDirection = Direction(human.Position, c.Agent.Position, new Vec2(0, -1));
+                double alignment = radialDirection.X * direction.X + radialDirection.Z * direction.Z;
+                if (distance >= settings.KeepMin && distance <= settings.KeepMax
+                    && (guard == null || (c.Agent.Role == TargetRole.Healer
+                        && alignment >= Math.Cos(settings.KeepAlignTolerance * Math.PI / 180))))
                     return (c.Agent.Position, human.Id);
                 double radius = distance < settings.KeepMin ? settings.KeepMin :
                     Math.Max(settings.KeepMin, Math.Min(settings.KeepMax,
@@ -203,7 +208,7 @@ namespace BehindTheCurtain.Core
         {
             if (action == ActionIds.Flank) return ConstrainFlank(c, next);
             if (action == ActionIds.Harass) return next;
-            if (action == ActionIds.Spread || action == ActionIds.Intercept) return next;
+            if (action == ActionIds.Spread || action == ActionIds.Intercept || action == ActionIds.Pressure) return next;
             var human = Nearest(c, Human);
             if (human == null) return next;
             double before = Distance(c.Agent.Position, human.Position);

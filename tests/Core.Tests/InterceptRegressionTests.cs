@@ -9,9 +9,9 @@ public class InterceptRegressionTests
 {
     internal static string Hash(PuppetTrajectory r) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", r.Frames.SelectMany(f => f.Puppets.Select(a => FormattableString.Invariant($"{f.Tick}:{a.Id.Value}:{a.Position.X:R}:{a.Position.Z:R}:{a.CurrentAction}:{a.Target}")))))));
     [Theory]
-    [InlineData("approach", "D962516E72898E5FA7A035634AF88A171C69455757DE161924E468730A064C79")]
-    [InlineData("circle", "F9B1A5F0E6522E61EDC39A701665B1164939B0C5548CCB5B406C0ECD72EE26A5")]
-    [InlineData("retreat", "178D2A898746D4E410344F2E4FB1C13B7D9F333FD6D8F8A424B01BB89E45E2E3")]
+    [InlineData("approach", "5B74BC8F308BB5E7A9904761CADDE9C703B98546FDE0C3F34151469193FF8873")]
+    [InlineData("circle", "CB1C0FCBA86C8DF45EE43895B30724271A392963F657022524BCB4ED8745F7F4")]
+    [InlineData("retreat", "86E8159A2FFE3E36C2AE41D780AAEA5C3751B82F7A859310B87B8E7C5D491B2A")]
     public void UnchangedNonInterceptTrajectory(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30))));
 
     [Fact]
@@ -104,22 +104,44 @@ public class InterceptRegressionTests
             Assert.True(PuppetSimulation.Distance(f.Puppets.Single(a => a.Id.Value == 10).Position,f.Player) >= .5, $"tick={f.Tick}"));
     }
 
-    [Fact]
-    public void AllScenariosAndLoadoutsPassForbiddenPatternsAndAreDeterministic()
+    [Theory]
+    [InlineData("approach", "presets")]
+    [InlineData("approach", "mixed")]
+    [InlineData("approach", "noprotect")]
+    [InlineData("circle", "presets")]
+    [InlineData("circle", "mixed")]
+    [InlineData("circle", "noprotect")]
+    [InlineData("retreat", "presets")]
+    [InlineData("retreat", "mixed")]
+    [InlineData("retreat", "noprotect")]
+    [InlineData("healer", "presets")]
+    [InlineData("healer", "mixed")]
+    [InlineData("healer", "noprotect")]
+    [InlineData("standstill", "presets")]
+    [InlineData("standstill", "mixed")]
+    [InlineData("standstill", "noprotect")]
+    [InlineData("orbit", "presets")]
+    [InlineData("orbit", "mixed")]
+    [InlineData("orbit", "noprotect")]
+    [InlineData("passby", "presets")]
+    [InlineData("passby", "mixed")]
+    [InlineData("passby", "noprotect")]
+    [InlineData("duo", "presets")]
+    [InlineData("duo", "mixed")]
+    [InlineData("duo", "noprotect")]
+    [InlineData("duo-swap", "presets")]
+    [InlineData("duo-swap", "mixed")]
+    [InlineData("duo-swap", "noprotect")]
+    public void AllScenariosAndLoadoutsPassForbiddenPatternsAndAreDeterministic(string name, string loadout)
     {
-        foreach (string name in new[] { "approach", "circle", "retreat", "healer", "standstill", "orbit", "passby" })
-        foreach (string loadout in new[] {"presets","mixed","noprotect"})
-        {
-            var r = PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout);
-            Assert.Equal(0,r.JitterFailures);
-            Assert.Equal(0,r.FleeTicks); Assert.Equal(0,r.InactivityFailures); Assert.Equal(0,r.PingPongs);
-            Assert.Equal(0,r.MissedAttackWindows); Assert.InRange(r.MaxInterceptors,0,1);
-            Assert.True(r.MaxSwitchesInWindow <= 3,$"{name}/{loadout}: switches={r.MaxSwitchesInWindow}");
-            Assert.True(r.SimultaneousRatio < .2,$"{name}/{loadout}: simultaneous={r.SimultaneousRatio}");
-            Assert.Equal(Hash(r),Hash(PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout)));
-        }
+        var r = PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout);
+        Assert.Equal(0,r.JitterFailures);
+        Assert.Equal(0,r.FleeTicks); Assert.Equal(0,r.InactivityFailures); Assert.Equal(0,r.PingPongs);
+        Assert.Equal(0,r.MissedAttackWindows); Assert.InRange(r.MaxInterceptors,0,1);
+        Assert.True(r.MaxSwitchesInWindow <= 3,$"{name}/{loadout}: switches={r.MaxSwitchesInWindow}");
+        Assert.True(r.SimultaneousRatio < .2,$"{name}/{loadout}: simultaneous={r.SimultaneousRatio}");
+        Assert.Equal(Hash(r),Hash(PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout)));
     }
-
 
     [Theory]
     [InlineData(0, 0, 1.5)] [InlineData(12, 10, 9)] [InlineData(0, 1, 1.5)]

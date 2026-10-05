@@ -146,10 +146,25 @@ namespace BehindTheCurtain.Core
                 Phase = HarassPhase.Withdraw;
                 harassDirection = Direction(target.Position, c.Agent.Position, harassDirection);
             }
+            // Commitment to waiting/withdrawal must not suppress an enabled ordinary
+            // attack when a human enters range (possibly a different human). Keep the
+            // scheduled jab and its full recovery intact; yield only outside those phases.
+            var attackTarget = AttackTarget(c);
+            bool ordinaryAttackEnabled = (settings.GetRoleWeight(c.Agent.Role, ActionIds.Attack) > 0
+                || c.Blackboard.HasIntention(c.Agent.Role + ":" + ActionIds.Attack))
+                && c.Blackboard.RoleIntention(c.Agent.Role, ActionIds.Attack) > 0;
+            if (ordinaryAttackEnabled && attackTarget != null
+                && (Phase == HarassPhase.Waiting || Phase == HarassPhase.Withdraw))
+            {
+                harassTarget = null; Phase = null; HarassAttack = true;
+                return (c.Agent.Position, attackTarget.Id);
+            }
             double radius = Phase == HarassPhase.Strike ? range - settings.AttackArrivalMargin : range + settings.HarassMargin;
             var goal = new Vec2(target.Position.X + harassDirection.X * radius, target.Position.Z + harassDirection.Z * radius);
+            // The movement toward this goal still belongs to Withdraw. Initialize the
+            // next Waiting phase on the next resolve, after this tick has been reported.
             if (Phase == HarassPhase.Withdraw && Distance(c.Agent.Position, goal) <= settings.AttackArrivalMargin)
-            { harassTarget = null; Phase = HarassPhase.Waiting; }
+            { harassTarget = null; }
             return (goal, target.Id);
         }
     }

@@ -183,7 +183,7 @@ public sealed class PuppetContractTests
         Add(world, 13, TargetRole.Healer, new Vec2(2, 6));
         var brain = PuppetBrain.Create(world, new PuppetSettings(moveSpeed: 0), new DeterministicRandom(1)).Value;
         brain.Tick(0);
-        Assert.Equal(new Vec2(0, 5), brain.GetDecision(new AgentId(13)).Value.Goal);
+        Assert.Equal(new Vec2(2, 6), brain.GetDecision(new AgentId(13)).Value.Goal);
         for (int tick = 1; tick < 100; tick++)
         {
             brain.Tick(tick);

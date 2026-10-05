@@ -41,6 +41,8 @@ namespace BehindTheCurtain.Core
             HarassMargin = basicActions?.HarassMargin ?? double.NaN;
             HarassIntervalTicks = basicActions?.HarassIntervalTicks ?? 0; HarassRecoverTicks = basicActions?.HarassRecoverTicks ?? 0;
             FlankNonMeleeScale = basicActions?.FlankNonMeleeScale ?? double.NaN; HarassMeleeScale = basicActions?.HarassMeleeScale ?? double.NaN;
+            ApproachNonMeleeScale = basicActions?.ApproachNonMeleeScale ?? double.NaN;
+            KeepAlignTolerance = basicActions?.KeepAlignTolerance ?? double.NaN;
             double flankWeight = basicActions?.FlankWeight ?? double.NaN, harassWeight = basicActions?.HarassWeight ?? double.NaN;
             InterceptStandOff = interceptStandOff; InterceptHoldTolerance = interceptHoldTolerance;
             InterceptClearance = interceptClearance; InterceptWaypointTolerance = interceptWaypointTolerance;
@@ -80,6 +82,8 @@ namespace BehindTheCurtain.Core
             RoleWeights = new ReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>(tables);
         }
         // Provisional, arbitrarily chosen T16b-3a-1 tuning (degrees, metres, ticks).
+        public double ApproachNonMeleeScale { get; }
+        public double KeepAlignTolerance { get; }
         public double FlankAngle { get; }
         public double FlankRadius { get; }
         public double HarassMargin { get; }
@@ -135,7 +139,8 @@ namespace BehindTheCurtain.Core
         public double AttackWeight { get; }
         public double InterceptPositionFloor { get; }
         public double PersistenceBonus { get; }
-        internal bool IsValid => Positive(FlankAngle) && FlankAngle <= 180 && Positive(FlankRadius)
+        internal bool IsValid => AiNumber.Weight(ApproachNonMeleeScale)
+            && AiNumber.Weight(KeepAlignTolerance) && KeepAlignTolerance <= 180 && Positive(FlankAngle) && FlankAngle <= 180 && Positive(FlankRadius)
             && Positive(HarassMargin) && HarassIntervalTicks > 0 && HarassRecoverTicks > 0
             && AiNumber.Weight(FlankNonMeleeScale) && AiNumber.Weight(HarassMeleeScale) && AiNumber.Weight(IndividualThreatInterceptScale) && ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0
             && Positive(MidAttackRange) && Positive(RangedAttackRange)
