@@ -149,7 +149,9 @@ public sealed class PuppetContractTests
         var world = new World();
         Add(world, 1, TargetRole.Attacker, new Vec2(0, 6), Side.Players);
         Add(world, 10, TargetRole.Guard, new Vec2(-3, 0));
-        Add(world, 11, TargetRole.Attacker, new Vec2(3, 0));
+        // Reservation handoff needs Protect even when an Attacker role intention enables intercept.
+        Assert.True(world.AddWithLoadout(new AgentState(new AgentId(11), Side.Puppets, false, TargetRole.Attacker,
+            new Vec2(3, 0), new Vec2(0, 1), 0.3), LoadoutPresets.Shield).Success);
         Add(world, 13, TargetRole.Healer, new Vec2(0, -1));
         var board = world.GetBlackboard(Side.Puppets).Value;
         board.SetFact("tactic", TacticId.GuardHealer);

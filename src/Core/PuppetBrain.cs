@@ -64,7 +64,7 @@ namespace BehindTheCurtain.Core
             {
                 if (agent.Side != Side.Puppets) continue;
                 var actions = new PuppetActions(settings, agent.Position);
-                var selector = UtilitySelector.Create(world, agent.Id, actions.Create(agent.Role, new DeterministicRandom(encounterSeed ^ (ulong)agent.Id.Value), profile),
+                var selector = UtilitySelector.Create(world, agent.Id, actions.Create(agent.Role, new DeterministicRandom(encounterSeed ^ (ulong)agent.Id.Value), profile, world.GetLoadout(agent.Id).Value),
                     new UtilitySettings(1, settings.PersistenceBonus), random);
                 if (!selector.Success) return AiResult<PuppetBrain>.Fail(selector.Failure);
                 puppets.Add(new Puppet(agent.Id, actions, selector.Value));
@@ -125,7 +125,7 @@ namespace BehindTheCurtain.Core
                 var agent = world.Get(decision.AgentId).Value;
                 var next = Clamp(PuppetActions.MoveTowards(agent.Position, decision.Goal,
                     (decision.Selection.ActionId == ActionIds.KeepDistance ? settings.KeepDistanceSpeed : settings.MoveSpeed)
-                    * world.MovementScale(agent.Id) / settings.TicksPerSecond));
+                    * world.GetMoveSpeedScale(agent.Id).Value * world.MovementScale(agent.Id) / settings.TicksPerSecond));
                 var movementContext = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
                 next = Clamp(puppets.Find(p => p.Id.Equals(agent.Id))!.Actions
                     .ConstrainMovement(movementContext, decision.Selection.ActionId, next));

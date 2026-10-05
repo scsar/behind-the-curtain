@@ -35,6 +35,7 @@ namespace BehindTheCurtain.Core
         public AgentId Id { get; }
         public Side Side { get; }
         public bool IsHuman { get; }
+        /// <summary>This encounter's assigned role; equipment determines capabilities.</summary>
         public TargetRole Role { get; }
         public Vec2 Position { get; }
         public Vec2 Direction { get; }
@@ -81,7 +82,11 @@ namespace BehindTheCurtain.Core
                 || (initialState.Values.TryGetValue(PuppetValueId.Posture, out var posture) && posture > StateSettings.MaxPosture)))
                 return AiResult<AgentState>.Fail(AiFailure.InvalidValue);
             agents.Add(agent.Id, agent);
-            if (agent.Side == Side.Puppets) AddPuppetState(agent.Id, initialState);
+            if (agent.Side == Side.Puppets)
+            {
+                AddPuppetState(agent.Id, initialState);
+                loadouts.Add(agent.Id, LoadoutPresets.ForRole(agent.Role));
+            }
             return AiResult<AgentState>.Ok(agent);
         }
 

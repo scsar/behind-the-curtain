@@ -46,6 +46,7 @@ public sealed record PuppetFrame(int Tick, Vec2 Player, AgentState[] Puppets)
 public sealed class PuppetTrajectory
 {
     public IReadOnlyList<PuppetStateEvent> Events { get; internal set; } = Array.Empty<PuppetStateEvent>();
+    public IReadOnlyList<string> EquipmentTable { get; internal set; } = Array.Empty<string>();
     public List<PuppetFrame> Frames { get; } = new();
     public int FleeTicks { get; internal set; }
     public Dictionary<int, List<int>> Switches { get; } = new();
@@ -73,8 +74,9 @@ public static class PuppetSimulation
         => Run(name, seed, intentions, settings, scenario, "none", new DirectorProfile());
 
     public static PuppetTrajectory Run(string name, ulong seed, IntentionSettings? intentions,
-        PuppetSettings? settings, PuppetScenarioSettings? scenario, string stress, DirectorProfile? profile = null)
+        PuppetSettings? settings, PuppetScenarioSettings? scenario, string stress, DirectorProfile? profile = null, string loadout = "presets", bool explicitPresets = false)
     {
+        if (loadout is not ("presets" or "mixed")) throw new ArgumentException("Unknown loadout", nameof(loadout));
         if (stress is not ("none" or "tension" or "mixed")) throw new ArgumentException("Unknown stress", nameof(stress));
         if (!Names.Contains(name)) throw new ArgumentException("Unknown puppet scenario", nameof(name));
         scenario ??= new PuppetScenarioSettings();
@@ -96,6 +98,11 @@ public static class PuppetSimulation
         Add(13, TargetRole.Healer, scenario.HealerStart);
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(seed), profile ?? new DirectorProfile()).Value;
         var result = new PuppetTrajectory { HasHealerThreat = world.GetBlackboard(Side.Puppets).Value.GetFact<AgentId>(TargetFactIds.HealerThreat).Success };
+        result.EquipmentTable = world.GetAgents().Where(a => a.Side == Side.Puppets).Select(a =>
+        {
+            var equipment = world.GetLoadout(a.Id).Value;
+            return FormattableString.Invariant($"{a.Id.Value}:{a.Role} equipment={string.Join(",", equipment.EquipmentIds)} capabilities={string.Join(",", equipment.Capabilities)} attackRange={equipment.GetAttackRange(settings):F2} moveSpeedScale={equipment.MoveSpeedScale:F2}");
+        }).ToArray();
         var outside = new Dictionary<int, int>();
         var histories = new Dictionary<int, List<string?>>();
         int residence = 0, noAttack = 0;
@@ -171,9 +178,9 @@ public static class PuppetSimulation
             int interceptors = after.Count(a => a.CurrentAction == ActionIds.Intercept);
             result.MaxInterceptors = Math.Max(result.MaxInterceptors, interceptors);
             result.InterceptAgentTicks += interceptors;
-            bool inRange = before.Any(a => world.CanAct(a.Id) && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Waver && Distance(a.Position, player) <= settings.AttackRange);
+            bool inRange = before.Any(a => world.CanAct(a.Id) && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Waver && Distance(a.Position, player) <= world.GetAttackRange(a.Id, settings).Value);
             bool attacking = after.Any(a => a.CurrentAction == ActionIds.Attack && a.Target.HasValue
-                && Distance(a.Position, player) <= settings.AttackRange);
+                && Distance(a.Position, player) <= world.GetAttackRange(a.Id, settings).Value);
             if (attacking) result.AttackTicks++;
             residence = inRange ? residence + 1 : 0;
             noAttack = inRange && !attacking ? noAttack + 1 : 0;
@@ -183,8 +190,19 @@ public static class PuppetSimulation
         result.Events = world.StateEvents.ToArray();
         return result;
 
-        void Add(int id, TargetRole role, Vec2 position, Side side = Side.Puppets) =>
-            world.Add(new AgentState(new AgentId(id), side, side == Side.Players, role, position, new Vec2(0, 1), scenario.AgentRadius), new PuppetInitialState(stress == "mixed" && id == 13 ? PuppetKind.Humanized : PuppetKind.Puppet));
+        void Add(int id, TargetRole role, Vec2 position, Side side = Side.Puppets)
+        {
+            var agent = new AgentState(new AgentId(id), side, side == Side.Players, role, position, new Vec2(0, 1), scenario.AgentRadius);
+            var initial = new PuppetInitialState(stress == "mixed" && id == 13 ? PuppetKind.Humanized : PuppetKind.Puppet);
+            if (side == Side.Players || (loadout == "presets" && !explicitPresets)) world.Add(agent, initial);
+            else
+            {
+                var equipment = loadout == "presets" || id == 13 ? LoadoutPresets.ForRole(role)
+                    : Loadout.Create(id == 10 ? new[] { "weapon.melee", "armor.heavyShield" }
+                        : id == 11 ? new[] { "weapon.melee" } : new[] { "weapon.spear" }).Value;
+                world.Add(agent, initial, equipment);
+            }
+        }
     }
 
     public static double Distance(Vec2 a, Vec2 b) => Math.Sqrt((a.X-b.X)*(a.X-b.X)+(a.Z-b.Z)*(a.Z-b.Z));
@@ -192,6 +210,7 @@ public static class PuppetSimulation
     public static void Print(PuppetTrajectory result, TextWriter output, PuppetScenarioSettings? settings = null)
     {
         settings ??= new PuppetScenarioSettings();
+        foreach (var row in result.EquipmentTable) output.WriteLine(row);
         foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
             output.WriteLine(FormattableString.Invariant($"tick={frame.Tick} player=({frame.Player.X:F2},{frame.Player.Z:F2}) ") +
                 string.Join(" ", frame.Puppets.Select(a => FormattableString.Invariant(

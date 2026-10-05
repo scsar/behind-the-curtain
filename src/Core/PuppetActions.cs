@@ -12,7 +12,7 @@ namespace BehindTheCurtain.Core
         internal PuppetActions(PuppetSettings settings, Vec2 formation)
         { this.settings = settings; this.formation = formation; }
 
-        internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random, DirectorProfile profile)
+        internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random, DirectorProfile profile, Loadout loadout)
         {
             var result = new List<UtilityAction>();
             foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
@@ -20,9 +20,11 @@ namespace BehindTheCurtain.Core
             {
                 double weight = settings.GetRoleWeight(role, id);
                 double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
+                // Capability eligibility is checked before role/situation. Intercept has no pull share.
                 // A role-specific intention explicitly enables a default-zero candidate at unit weight.
                 result.Add(new UtilityAction(id, new[] { Factor("contract", c =>
-                    (weight > 0 || c.Blackboard.HasIntention(role + ":" + id) ? 1 : 0) * Suitability(c, id)) },
+                    (id == ActionIds.Intercept && !loadout.HasCapability(CapabilityTag.Protect) ? 0 :
+                        (weight > 0 || c.Blackboard.HasIntention(role + ":" + id) ? 1 : 0) * Suitability(c, id))) },
                     (weight > 0 ? weight : 1) * jitter) { TensionWeighted = true });
             }
             if (profile.EnableWaver) result.Add(new UtilityAction(ActionIds.Waver, Array.Empty<UtilityConsideration>(), 0)
@@ -37,7 +39,7 @@ namespace BehindTheCurtain.Core
             if (id == ActionIds.Approach)
             {
                 var target = ApproachTarget(c);
-                return target != null && Distance(c.Agent.Position, target.Position) > settings.AttackRange ? 1 : 0;
+                return target != null && Distance(c.Agent.Position, target.Position) > c.World.GetAttackRange(c.Agent.Id, settings).Value ? 1 : 0;
             }
             if (id == ActionIds.Attack) return AttackTarget(c) == null ? 0 : 1;
             if (id == ActionIds.Hold) return distance > settings.ThreatRadius ? 1 : 0;
@@ -79,7 +81,7 @@ namespace BehindTheCurtain.Core
             if (action == ActionIds.Approach)
             {
                 var target = ApproachTarget(c);
-                return (target == null ? c.Agent.Position : MoveTowards(target.Position, c.Agent.Position, settings.AttackRange - settings.AttackArrivalMargin), target?.Id);
+                return (target == null ? c.Agent.Position : MoveTowards(target.Position, c.Agent.Position, c.World.GetAttackRange(c.Agent.Id, settings).Value - settings.AttackArrivalMargin), target?.Id);
             }
             if (action == ActionIds.Attack) return (c.Agent.Position, AttackTarget(c)?.Id);
             if (action == ActionIds.Hold) return (formation, null);
@@ -175,7 +177,7 @@ namespace BehindTheCurtain.Core
         private AgentState? AttackTarget(UtilityContext c)
         {
             var target = Nearest(c, Human);
-            return target != null && Distance(c.Agent.Position, target.Position) <= settings.AttackRange
+            return target != null && Distance(c.Agent.Position, target.Position) <= c.World.GetAttackRange(c.Agent.Id, settings).Value
                 ? target : null;
         }
         private AgentState? Healer(UtilityContext c)
