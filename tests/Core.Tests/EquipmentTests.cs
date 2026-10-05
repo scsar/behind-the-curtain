@@ -12,7 +12,7 @@ public sealed class EquipmentTests
     private static Loadout Gear(params string[] ids) => Loadout.Create(ids).Value;
     private static AgentState Agent(int id, TargetRole role, double x = 0, Side side = Side.Puppets) =>
         new(new AgentId(id), side, side == Side.Players, role, new Vec2(x, 0), new Vec2(1, 0), 0.3);
-    private static PuppetSettings Settings(double speed = 3) => new(moveSpeed: speed, weightJitter: 0,
+    private static PuppetSettings Settings(double speed = 3) => new(new BasicActionSettings(flankWeight: 0, harassWeight: 0), moveSpeed: speed, weightJitter: 0,
         persistenceBonus: 0, reevaluationIntervalTicks: 1, arenaHalfSize: 30);
     private static PuppetBrain Brain(World world, PuppetSettings? settings = null) =>
         PuppetBrain.Create(world, settings ?? Settings(), new DeterministicRandom(1),

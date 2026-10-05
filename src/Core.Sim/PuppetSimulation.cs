@@ -52,6 +52,7 @@ public sealed class PuppetScenarioSettings
 
 public sealed record PuppetFrame(int Tick, Vec2 Player, AgentState[] Puppets)
 {
+    public IReadOnlyDictionary<int, HarassPhase?> HarassPhases { get; init; } = new Dictionary<int, HarassPhase?>();
     public AgentState[] Players { get; init; } = Array.Empty<AgentState>();
     public PuppetState[] States { get; init; } = Array.Empty<PuppetState>();
     public AgentId? TuneTarget { get; init; }
@@ -81,6 +82,7 @@ public sealed class PuppetTrajectory
     public int NonHealerTargetTicks { get; internal set; }
     public int ConcentratedTicks { get; internal set; }
     public double ConcentrationRatio => NonHealerTargetTicks == 0 ? 0 : (double)ConcentratedTicks / NonHealerTargetTicks;
+    public Dictionary<string, int> ActionAgentTicks { get; } = new();
     public int FleeTicks { get; internal set; }
     public Dictionary<int, List<int>> Switches { get; } = new();
     public int ChangedTicks { get; internal set; }
@@ -199,12 +201,16 @@ public static class PuppetSimulation
             var after = world.GetAgents().Where(a => a.Side == Side.Puppets).ToArray();
             var players = world.GetAgents().Where(a => a.Side == Side.Players).ToArray();
             Vec2 TargetPosition(AgentState agent) => players.FirstOrDefault(p => agent.Target.HasValue && p.Id.Equals(agent.Target.Value))?.Position ?? player;
-            result.Frames.Add(new PuppetFrame(tick, player, after) { Players = players, States = world.GetPuppetStates().ToArray(),
+            result.Frames.Add(new PuppetFrame(tick, player, after) { Players = players,
+                HarassPhases = after.ToDictionary(a => a.Id.Value, a => brain.GetDecision(a.Id).Success ? brain.GetDecision(a.Id).Value.HarassPhase : null), States = world.GetPuppetStates().ToArray(),
                 TuneTarget = brain.TuneTarget, TuneAmount = brain.TuneAmount, Budget = brain.CurrentTuneBudgetPerSecond });
             int changed = 0;
             for (int i = 0; i < after.Length; i++)
             {
                 var a = after[i]; int id = a.Id.Value;
+                string action = a.CurrentAction ?? "none";
+                result.ActionAgentTicks[action] = result.ActionAgentTicks.GetValueOrDefault(action) + 1;
+                var phase = brain.GetDecision(a.Id).Success ? brain.GetDecision(a.Id).Value.HarassPhase : null;
                 if (a.Target.HasValue && result.TargetAgentTicks.ContainsKey(a.Target.Value.Value))
                 {
                     result.TargetedAgentTicks++;
@@ -256,13 +262,14 @@ public static class PuppetSimulation
                 double oldDistance = Distance(before[i].Position, targetPosition), distance = Distance(a.Position, targetPosition);
                 bool unableToPerformPrimary = a.Role == TargetRole.Guard && !world.GetLoadout(a.Id).Value.HasCapability(CapabilityTag.Protect);
                 inactive[id] = unableToPerformPrimary && distance <= settings.ThreatRadius && a.CurrentAction != ActionIds.Waver && a.CurrentAction != ActionIds.Attack
+                    && phase != HarassPhase.Recover
                     && Distance(before[i].Position, a.Position) <= scenario.Epsilon ? inactive[id] + 1 : 0;
                 result.LongestInactiveTicks = Math.Max(result.LongestInactiveTicks, inactive[id]);
                 if (inactive[id] > scenario.InactivityLimitSeconds * settings.TicksPerSecond) result.InactivityFailures++;
                 var keepScore = brain.GetDecision(a.Id).Value.Selection.Scores.Single(s => s.ActionId == ActionIds.KeepDistance);
                 bool keepEnabled = keepScore.IntentionMultiplier > 0 &&
                     (settings.GetRoleWeight(a.Role, ActionIds.KeepDistance) > 0 || keepScore.Product > 0);
-                if (a.CurrentAction != ActionIds.Intercept && !keepEnabled && oldDistance <= settings.ThreatRadius && distance > oldDistance + scenario.Epsilon
+                if (a.CurrentAction != ActionIds.Intercept && !(a.CurrentAction == ActionIds.Harass && phase == HarassPhase.Withdraw) && !keepEnabled && oldDistance <= settings.ThreatRadius && distance > oldDistance + scenario.Epsilon
                     && !(a.CurrentAction == ActionIds.Spread && distance - oldDistance <= scenario.SpreadAllowance)) result.FleeTicks++;
                 if (keepEnabled)
                 {
@@ -327,7 +334,7 @@ public static class PuppetSimulation
         foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
             output.WriteLine(FormattableString.Invariant($"tick={frame.Tick} player=({frame.Player.X:F2},{frame.Player.Z:F2}) ") +
                 string.Join(" ", frame.Puppets.Select(a => FormattableString.Invariant(
-                    $"{a.Id.Value}:{a.Role}/{a.CurrentAction}({a.Position.X:F2},{a.Position.Z:F2})"))) +
+                    $"{a.Id.Value}:{a.Role}/{a.CurrentAction}{(frame.HarassPhases.GetValueOrDefault(a.Id.Value).HasValue ? "/" + frame.HarassPhases[a.Id.Value] : "")}({a.Position.X:F2},{a.Position.Z:F2})"))) +
                 string.Join(" ", frame.States.Select(s => $" {s.Id.Value}:T={s.Tension:F3}/P={s.Posture:F1}/{s.Status}")) +
                 $" tune={frame.TuneTarget?.Value.ToString() ?? "-"} amount={frame.TuneAmount:F4} budget={frame.Budget:F3}");
         if (result.TargetAgentTicks.Count > 1)
@@ -340,7 +347,10 @@ public static class PuppetSimulation
             $"inactive={result.InactivityFailures} longestInactive={result.LongestInactiveTicks} flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs} jitter={result.JitterFailures} maxReversals/1s={string.Join(",", result.MaxDirectionReversals.Select(p => p.Key + ":" + p.Value))}"));
         output.WriteLine(result.InterceptAgentTicks == 0 ? "interceptQuality ticks=0 n/a(막아서기 없음)" :
             FormattableString.Invariant($"interceptQuality ticks={result.InterceptAgentTicks} settled={result.InterceptSettledTicks} within1m={result.InterceptQualityRatio:P1} mean={result.InterceptMeanDistance:F3}m travel={result.InterceptTravel:F3}m"));
-        if (result.TargetAgentTicks.Count > 1)
+        output.WriteLine("actionOccupancy " + string.Join(" ", new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Hold, ActionIds.Intercept,
+            ActionIds.Spread, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Waver, ActionIds.Flank, ActionIds.Harass, "none" }
+            .Select(id => FormattableString.Invariant($"{id}={result.ActionAgentTicks.GetValueOrDefault(id)}({(double)result.ActionAgentTicks.GetValueOrDefault(id) / result.ActionAgentTicks.Values.Sum():P1})"))));
+        if (result.TargetAgentTicks.Count > 0)
             output.WriteLine(FormattableString.Invariant($"targetDistribution total={result.TargetedAgentTicks} ") +
                 string.Join(" ", result.TargetAgentTicks.Select(p => FormattableString.Invariant($"player{p.Key}={p.Value}({(result.TargetedAgentTicks == 0 ? 0 : (double)p.Value / result.TargetedAgentTicks):P1})"))) +
                 FormattableString.Invariant($" concentrated={result.ConcentratedTicks}/{result.NonHealerTargetTicks}({result.ConcentrationRatio:P1}) interceptTargets=") +

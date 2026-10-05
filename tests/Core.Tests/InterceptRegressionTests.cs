@@ -12,7 +12,7 @@ public class InterceptRegressionTests
     [InlineData("approach", "D962516E72898E5FA7A035634AF88A171C69455757DE161924E468730A064C79")]
     [InlineData("circle", "F9B1A5F0E6522E61EDC39A701665B1164939B0C5548CCB5B406C0ECD72EE26A5")]
     [InlineData("retreat", "178D2A898746D4E410344F2E4FB1C13B7D9F333FD6D8F8A424B01BB89E45E2E3")]
-    public void UnchangedNonInterceptTrajectory(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name)));
+    public void UnchangedNonInterceptTrajectory(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30))));
 
     [Fact]
     public void StandstillSettlesWithoutPositionJitter()

@@ -17,11 +17,11 @@ public class DuoSimulationTests
     [InlineData("passby", "615E8874679BBB21B0874E23DF83D2473B95A588561A705B58F2534D9F73A0F9")]
     public void LegacySevenTrajectoriesRemainUnchanged(string name, string expected)
     {
-        var r = PuppetSimulation.Run(name);
+        var r = PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30));
         Assert.Equal(expected, InterceptRegressionTests.Hash(r));
         Assert.All(r.Frames, f => Assert.Equal(1, Assert.Single(f.Players).Id.Value));
         using var output = new StringWriter(); PuppetSimulation.Print(r, output);
-        Assert.DoesNotContain("targetDistribution", output.ToString());
+        Assert.Contains("targetDistribution", output.ToString());
     }
 
     [Theory]

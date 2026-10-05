@@ -16,6 +16,7 @@ namespace BehindTheCurtain.Core
         /// <summary>Arena-clamped destination used for this tick, including stationary attacks.</summary>
         public Vec2 Goal { get; }
         public AgentId? Target { get; }
+        public HarassPhase? HarassPhase { get; internal set; }
         public DecisionCause? Cause { get; internal set; }
     }
 
@@ -97,7 +98,7 @@ namespace BehindTheCurtain.Core
             foreach (var puppet in puppets)
             {
                 int offset = (int)((long)ordinal++ * settings.ReevaluationIntervalTicks / puppets.Count);
-                if (!world.CanAct(puppet.Id)) { decisions.Remove(puppet.Id); continue; }
+                if (!world.CanAct(puppet.Id)) { decisions.Remove(puppet.Id); puppet.Actions.ResetBasicActions(); continue; }
                 // Only ally-dependent decisions need immediate invalidation. Unrelated approach/attack
                 // decisions retain their staggered cadence when another puppet leaves or reconnects.
                 bool dependsOnAllies = decisions.TryGetValue(puppet.Id, out var prior) &&
@@ -105,15 +106,22 @@ namespace BehindTheCurtain.Core
                      prior.Selection.ActionId == ActionIds.KeepDistance);
                 bool evaluate = (participationChanged && dependsOnAllies) || !decisions.ContainsKey(puppet.Id) ||
                     unchecked((ulong)tick - (ulong)firstTick) % (ulong)settings.ReevaluationIntervalTicks == (ulong)offset;
+                var agent = world.Get(puppet.Id).Value;
+                var context = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
                 var selected = evaluate ? puppet.Selector.Select(tick)
                     : AiResult<UtilitySelection>.Ok(new UtilitySelection(decisions[puppet.Id].Selection.ActionId,
                         decisions[puppet.Id].Selection.EvaluatedAtTick, false, decisions[puppet.Id].Selection.Scores));
                 if (!selected.Success) return selected.Failure;
-                var agent = world.Get(puppet.Id).Value;
-                var context = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
+                if (selected.Value.ActionId != ActionIds.Waver && world.GetPuppetState(agent.Id).Value.Tension > 0
+                    && puppet.Actions.IsCommitted(context) && puppet.Actions.CommittedAction != null)
+                    selected = AiResult<UtilitySelection>.Ok(new UtilitySelection(puppet.Actions.CommittedAction,
+                        selected.Value.EvaluatedAtTick, selected.Value.Reevaluated, selected.Value.Scores));
                 puppet.Actions.Reserve(context, selected.Value.ActionId);
                 var resolved = puppet.Actions.Resolve(context, selected.Value.ActionId);
-                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role };
+                if (puppet.Actions.HarassAttack)
+                    selected = AiResult<UtilitySelection>.Ok(new UtilitySelection(ActionIds.Attack,
+                        selected.Value.EvaluatedAtTick, selected.Value.Reevaluated, selected.Value.Scores));
+                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role, HarassPhase = puppet.Actions.Phase };
                 if (selected.Value.ActionId != null && (selected.Value.ActionId == ActionIds.Waver || settings.GetRoleWeight(agent.Role, selected.Value.ActionId) == 0))
                 {
                     PuppetStateEvent? cause = null;

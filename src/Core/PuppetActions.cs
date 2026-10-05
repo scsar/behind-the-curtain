@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BehindTheCurtain.Core
 {
     /// <summary>Pure candidates. Intentions come exclusively from the selector's blackboard.</summary>
-    internal sealed class PuppetActions
+    internal sealed partial class PuppetActions
     {
         private readonly PuppetSettings settings;
         private readonly Vec2 formation;
@@ -19,17 +19,19 @@ namespace BehindTheCurtain.Core
         {
             var result = new List<UtilityAction>();
             foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
-                ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Pressure })
+                ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Flank, ActionIds.Harass })
             {
                 if (id == ActionIds.Pressure && (role != TargetRole.Guard || loadout.HasCapability(CapabilityTag.Protect))) continue;
                 double weight = RoleContract.ForRole(role).EffectiveWeight(settings, loadout, id);
+                double preference = id == ActionIds.Flank ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.FlankNonMeleeScale)
+                    : id == ActionIds.Harass ? (loadout.RangeBand == RangeBand.Melee ? settings.HarassMeleeScale : 1) : 1;
                 double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
                 // Capability eligibility is checked before role/situation. Intercept has no pull share.
                 // A role-specific intention explicitly enables a default-zero candidate at unit weight.
                 result.Add(new UtilityAction(id, new[] { Factor("contract", c =>
                     (id == ActionIds.Intercept && !loadout.HasCapability(CapabilityTag.Protect) ? 0 :
                         (weight > 0 || (id != ActionIds.Pressure && c.Blackboard.HasIntention(role + ":" + id)) ? 1 : 0) * Suitability(c, id))) },
-                    (weight > 0 ? weight : 1) * jitter) { TensionWeighted = true });
+                    (weight > 0 ? weight : 1) * jitter * preference) { TensionWeighted = true });
             }
             if (profile.EnableWaver) result.Add(new UtilityAction(ActionIds.Waver, Array.Empty<UtilityConsideration>(), 0)
                 { TensionWeighted = true, Pull = profile.WaverPull });
@@ -40,6 +42,8 @@ namespace BehindTheCurtain.Core
         {
             var human = Nearest(c, Human);
             double distance = human == null ? double.PositiveInfinity : Distance(c.Agent.Position, human.Position);
+            if (id == ActionIds.Flank) return FlankSuitability(c);
+            if (id == ActionIds.Harass) return Nearest(c, Human) == null ? 0 : 1;
             if (id == ActionIds.Pressure)
             {
                 var threat = Threat(c, TargetFactIds.HealerThreat);
@@ -88,6 +92,9 @@ namespace BehindTheCurtain.Core
 
         internal (Vec2 Goal, AgentId? Target) Resolve(UtilityContext c, string? action)
         {
+            if (action == ActionIds.Flank) return ResolveFlank(c);
+            if (action == ActionIds.Harass) return ResolveHarass(c);
+            ResetBasicActions();
             if (action == ActionIds.Approach || action == ActionIds.Pressure)
             {
                 var target = action == ActionIds.Pressure ? Threat(c, TargetFactIds.HealerThreat) : ApproachTarget(c);
@@ -194,6 +201,8 @@ namespace BehindTheCurtain.Core
 
         internal Vec2 ConstrainMovement(UtilityContext c, string? action, Vec2 next)
         {
+            if (action == ActionIds.Flank) return ConstrainFlank(c, next);
+            if (action == ActionIds.Harass) return next;
             if (action == ActionIds.Spread || action == ActionIds.Intercept) return next;
             var human = Nearest(c, Human);
             if (human == null) return next;
