@@ -17,8 +17,12 @@ namespace BehindTheCurtain.Core
             double attackArrivalMargin = 0.05, double guardRearOffset = 2,
             double guardHoldScale = 3,
             IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights = null, double individualThreatInterceptScale = 0.5,
-            double midAttackRange = 3.5, double rangedAttackRange = 8)
+            double midAttackRange = 3.5, double rangedAttackRange = 8, double interceptStandOff = 1.0,
+            double interceptHoldTolerance = 0.3, double interceptClearance = 1.0,
+            double interceptWaypointTolerance = 0.2)
         {
+            InterceptStandOff = interceptStandOff; InterceptHoldTolerance = interceptHoldTolerance;
+            InterceptClearance = interceptClearance; InterceptWaypointTolerance = interceptWaypointTolerance;
             MidAttackRange = midAttackRange; RangedAttackRange = rangedAttackRange;
             IndividualThreatInterceptScale = individualThreatInterceptScale;
             GuardRearOffset = guardRearOffset; GuardHoldScale = guardHoldScale;
@@ -78,6 +82,11 @@ namespace BehindTheCurtain.Core
                 return true;
             }
         }
+        // Provisional, arbitrarily chosen intercept geometry tolerances (metres).
+        public double InterceptStandOff { get; }
+        public double InterceptHoldTolerance { get; }
+        public double InterceptClearance { get; }
+        public double InterceptWaypointTolerance { get; }
         public double InterceptDistance { get; }
         public double SpreadDistance { get; }
         public double AttackRange { get; }
@@ -101,7 +110,8 @@ namespace BehindTheCurtain.Core
             && AttackArrivalMargin < AttackRange && Positive(ThreatRadius) && Positive(KeepMin) && KeepMax > KeepMin
             && AiNumber.Finite(KeepMax) && WeightJitter >= 0 && WeightJitter < 1
             && ReevaluationIntervalTicks > 0 && Positive(KeepDistanceWeight) && AiNumber.Weight(PassiveInterceptScale)
-            && Positive(InterceptDistance) && Positive(SpreadDistance)
+            && Positive(InterceptStandOff) && AiNumber.Weight(InterceptHoldTolerance)
+            && Positive(InterceptClearance) && Positive(InterceptWaypointTolerance) && Positive(InterceptDistance) && Positive(SpreadDistance)
             && Positive(AttackRange) && AiNumber.Weight(MoveSpeed) && Positive(ArenaHalfSize)
             && TicksPerSecond > 0 && Positive(DistanceScale) && AiNumber.Weight(ApproachWeight)
             && AiNumber.Weight(InterceptWeight) && AiNumber.Weight(SpreadWeight)

@@ -9,6 +9,9 @@ namespace BehindTheCurtain.Core
         private readonly PuppetSettings settings;
         private readonly Vec2 formation;
         private AgentId? protectedHealer;
+        private Vec2? interceptWaypoint;
+        private bool interceptWaypointReached;
+        private Vec2 interceptWaypointThreat;
         internal PuppetActions(PuppetSettings settings, Vec2 formation)
         { this.settings = settings; this.formation = formation; }
 
@@ -54,9 +57,10 @@ namespace BehindTheCurtain.Core
                     || c.Blackboard.HasIntention(c.Agent.Role + ":" + id) ? 1 : 0;
             if (id == ActionIds.Intercept)
             {
-                if (AttackTarget(c) != null) return 0;
                 var healer = Healer(c);
-                if (healer == null || healer.Id.Equals(c.Agent.Id) || Threat(c, TargetFactIds.HealerThreat) == null) return 0;
+                var threat = Threat(c, TargetFactIds.HealerThreat);
+                if (healer == null || healer.Id.Equals(c.Agent.Id) || threat == null) return 0;
+                if (AttackTarget(c) != null && Distance(threat.Position, healer.Position) >= Distance(c.Agent.Position, healer.Position)) return 0;
                 var reservation = c.Blackboard.GetReservation("intercept:" + healer.Id.Value, c.Tick);
                 if (reservation.Success && !reservation.Value.Owner.Equals(c.Agent.Id)) return 0;
                 var tactic = c.Blackboard.GetFact<TacticId>("tactic");
@@ -71,7 +75,7 @@ namespace BehindTheCurtain.Core
 
         internal void Reserve(UtilityContext c, string? action)
         {
-            if (action != ActionIds.Intercept) { protectedHealer = null; return; }
+            if (action != ActionIds.Intercept) { protectedHealer = null; interceptWaypoint = null; interceptWaypointReached = false; return; }
             var healer = Healer(c);
             if (healer == null) return;
             var reserved = c.Blackboard.Reserve("intercept:" + healer.Id.Value, c.Agent.Id,
@@ -97,14 +101,49 @@ namespace BehindTheCurtain.Core
                 var healer = Healer(c);
                 if (threat == null || healer == null)
                     return (c.Agent.Position, null);
-                // Short segments stop at the threat rather than extending behind it.
-                return (MoveTowards(healer.Position, threat.Position, settings.InterceptDistance), threat.Id);
+                var goal = InterceptGeometry.ClosestPoint(c.Agent.Position, healer.Position, threat.Position, settings);
+                if (Distance(c.Agent.Position, goal) <= settings.InterceptHoldTolerance)
+                { interceptWaypoint = null; interceptWaypointReached = false; return (c.Agent.Position, threat.Id); }
+                if (interceptWaypoint.HasValue)
+                {
+                    if (Distance(interceptWaypointThreat, threat.Position) == 0 &&
+                        Distance(c.Agent.Position, interceptWaypoint.Value) <= settings.InterceptWaypointTolerance)
+                    {
+                        interceptWaypoint = null;
+                        interceptWaypointReached = true;
+                        return (goal, threat.Id);
+                    }
+                    interceptWaypoint = Detour(c.Agent.Position, goal, threat.Position);
+                    interceptWaypointThreat = threat.Position;
+                    if (Distance(c.Agent.Position, interceptWaypoint.Value) <= settings.InterceptWaypointTolerance)
+                    {
+                        interceptWaypoint = null; interceptWaypointReached = true;
+                        return (goal, threat.Id);
+                    }
+                    return (interceptWaypoint.Value, threat.Id);
+                }
+                if (interceptWaypointReached && Distance(interceptWaypointThreat, threat.Position) > settings.InterceptWaypointTolerance) interceptWaypointReached = false;
+                var closest = InterceptGeometry.Project(threat.Position, c.Agent.Position, goal);
+                if (!interceptWaypointReached && Distance(closest, threat.Position) < settings.InterceptClearance)
+                {
+                    interceptWaypointThreat = threat.Position;
+                    interceptWaypoint = Detour(c.Agent.Position, goal, threat.Position);
+                    return (interceptWaypoint.Value, threat.Id);
+                }
+                return (goal, threat.Id);
             }
             if (action == ActionIds.KeepDistance)
             {
                 var human = Nearest(c, Human);
                 if (human == null) return (c.Agent.Position, null);
                 double distance = Distance(c.Agent.Position, human.Position);
+                if (c.Agent.Role == TargetRole.Healer && c.Blackboard.GetReservation("intercept:" + c.Agent.Id.Value, c.Tick).Success)
+                {
+                    if (distance >= settings.KeepMin && distance <= settings.KeepMax) return (c.Agent.Position, human.Id);
+                    var radial = Direction(human.Position, c.Agent.Position, new Vec2(0, -1));
+                    double boundary = distance < settings.KeepMin ? settings.KeepMin : settings.KeepMax;
+                    return (new Vec2(human.Position.X + radial.X * boundary, human.Position.Z + radial.Z * boundary), human.Id);
+                }
                 var guard = Nearest(c, a => a.Side == Side.Puppets && a.Role == TargetRole.Guard
                     && !a.Id.Equals(c.Agent.Id));
                 var direction = Direction(human.Position, guard?.Position ?? c.Agent.Position, new Vec2(0, -1));
@@ -143,9 +182,19 @@ namespace BehindTheCurtain.Core
             return (c.Agent.Position, null);
         }
 
+        private Vec2 Detour(Vec2 position, Vec2 goal, Vec2 threat)
+        {
+            var along = Direction(position, goal, new Vec2(0, 1));
+            var left = new Vec2(threat.X - along.Z * settings.InterceptClearance,
+                threat.Z + along.X * settings.InterceptClearance);
+            var right = new Vec2(threat.X + along.Z * settings.InterceptClearance,
+                threat.Z - along.X * settings.InterceptClearance);
+            return Distance(position, left) <= Distance(position, right) ? left : right;
+        }
+
         internal Vec2 ConstrainMovement(UtilityContext c, string? action, Vec2 next)
         {
-            if (action == ActionIds.Spread) return next;
+            if (action == ActionIds.Spread || action == ActionIds.Intercept) return next;
             var human = Nearest(c, Human);
             if (human == null) return next;
             double before = Distance(c.Agent.Position, human.Position);
@@ -160,7 +209,7 @@ namespace BehindTheCurtain.Core
                 }
                 return next;
             }
-            // Hold/intercept destinations can move behind us. Never retreat from a nearby human
+            // Hold destinations can move behind us. Never retreat from a nearby human
             // unless the selected action explicitly calls for it.
             return before <= settings.ThreatRadius && Distance(next, human.Position) > before
                 ? c.Agent.Position : next;

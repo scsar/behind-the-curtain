@@ -23,13 +23,13 @@ public sealed class PuppetBrainTests
         Assert.Equal(ActionIds.Intercept, world.Get(new AgentId(10)).Value.CurrentAction);
         Assert.Equal(new AgentId(1), world.Get(new AgentId(10)).Value.Target);
         var first = brain.GetDecision(new AgentId(10)).Value.Goal;
-        // The healer now maintains distance behind its guard, so the intercept point is relative.
-        Assert.InRange(Distance(first, world.Get(new AgentId(11)).Value.Position), 1.3, 1.7);
+        // The destination may hold within the segment tolerance instead of a fixed healer offset.
+        Assert.InRange(Distance(first, InterceptGeometry.ClosestPoint(first, world.Get(new AgentId(11)).Value.Position, world.Get(new AgentId(1)).Value.Position, new PuppetSettings())), 0, .3);
         world.UpdatePosition(new AgentId(1), new Vec2(0, 6), new Vec2(0, 1));
         Run(brain, N, N);
         AssertBetween(world, 10, 11, 1);
         var second = brain.GetDecision(new AgentId(10)).Value.Goal;
-        Assert.InRange(Distance(second, world.Get(new AgentId(11)).Value.Position), 1.3, 1.7);
+        Assert.InRange(Distance(second, InterceptGeometry.ClosestPoint(second, world.Get(new AgentId(11)).Value.Position, world.Get(new AgentId(1)).Value.Position, new PuppetSettings())), 0, .3);
         Assert.NotEqual(first, second);
         Assert.Equal(ActionIds.Intercept, world.Get(new AgentId(10)).Value.CurrentAction);
     }
