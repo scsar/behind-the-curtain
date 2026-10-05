@@ -462,6 +462,12 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag retry --prompt-file docs/runs/T16b-3a-1r.md
   ```
 
+- [ ] **U7 인형 행동 수치를 Unity에서 조절 (Unity)**
+  > "굼뜨고 불연속적"이라는 Play 피드백을 숫자 하나 바꿀 때마다 run을 돌리지 않고 직접 맞추기 위한 도구. Core의 PuppetSettings·BasicActionSettings 숫자를 인스펙터에 모두 연결(초깃값 = Core 기본값), F5로 지금 교전에 다시 적용, 잘못된 값은 경고 후 이전 값 유지, F6으로 기본값과 다른 값만 한 줄 기록·복사. Core는 바꾸지 않는다. **T16b-3a-1r 뒤에 돌린다**(3a-1r이 새 설정 ApproachNonMeleeScale, KeepAlignTolerance를 더하므로). 좋은 값을 찾으면 그 줄을 주면 기본값 반영 run을 쓴다.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/U7.md
+  ```
+
 ## 참고
 
 - **Unity 클라이언트에서 할 일(규칙 코어 범위 밖):** 간섭 방식마다 색과 소리를 고정한 신호 언어. 강한 명령과 카운터 기회에 필요한 실만 선명하게 표시.
