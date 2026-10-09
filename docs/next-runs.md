@@ -468,7 +468,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/T16b-3a-1b.md
   ```
 
-- [ ] **U7 인형 행동 수치를 Unity에서 조절 (Unity)**
+- [x] **U7 인형 행동 수치를 Unity에서 조절 (Unity)** — `c5a51ba`. 입력 30만 토큰, 3분. 리뷰 포인트 8개 모두 통과. 자동 연결 43개(PuppetSettings 30, BasicActionSettings 11, SurroundSettings 2), 옮긴 필드 없음(14개 모두 기본값과 같음). 쓰는 법: Prototype 씬에 PrototypeBootstrap 오브젝트를 두고 우클릭 "인형 수치 목록 채우기" → 값 수정 → Play 중 F5 적용 → 좋은 조합은 F6 한 줄. 주의: F5는 PuppetBrain.Create를 다시 불러 진형 자리를 그 순간 위치로 다시 잡는다(교전 시작 직후 F5 권장)
   > **T16b-3a-1b 뒤에 돌린다(2026-10-05 결정: 측면 돌기·견제·포위가 다 들어온 뒤 한 번에 맞춘다). 명령은 자동 연결 방식(설정 이름-값 목록을 Core 생성자 인자 이름으로 맞춰 넣음)으로 고쳐 썼고, F1 라벨이 인형을 가리는 문제(상자를 인형 머리 위로)도 넣었다.** "굼뜨고 불연속적"이라는 Play 피드백을 숫자 하나 바꿀 때마다 run을 돌리지 않고 직접 맞추기 위한 도구. Core의 PuppetSettings·BasicActionSettings 숫자를 인스펙터에 모두 연결(초깃값 = Core 기본값), F5로 지금 교전에 다시 적용, 잘못된 값은 경고 후 이전 값 유지, F6으로 기본값과 다른 값만 한 줄 기록·복사. Core는 바꾸지 않는다. **T16b-3a-1r 뒤에 돌린다**(3a-1r이 새 설정 ApproachNonMeleeScale, KeepAlignTolerance를 더하므로). 좋은 값을 찾으면 그 줄을 주면 기본값 반영 run을 쓴다.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/U7.md
