@@ -19,8 +19,9 @@ namespace BehindTheCurtain.Core
             IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights = null, double individualThreatInterceptScale = 0.5,
             double midAttackRange = 3.5, double rangedAttackRange = 8, double interceptStandOff = 1.0,
             double interceptHoldTolerance = 0.3, double interceptClearance = 1.0,
-            double interceptWaypointTolerance = 0.2)
-            : this(new BasicActionSettings(), interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance) { }
+            double interceptWaypointTolerance = 0.2, double targetDistanceScale = 4, int pressCap = 2,
+            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30)
+            : this(new BasicActionSettings(), interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, targetDistanceScale, pressCap, crowdPenalty, targetSwitchMargin, targetMinHoldTicks) { }
 
         public PuppetSettings(BasicActionSettings basicActions, double interceptDistance = 1.5, double spreadDistance = 3,
             double attackRange = 2, double moveSpeed = 3, double arenaHalfSize = 10,
@@ -35,8 +36,11 @@ namespace BehindTheCurtain.Core
             IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights = null, double individualThreatInterceptScale = 0.5,
             double midAttackRange = 3.5, double rangedAttackRange = 8, double interceptStandOff = 1.0,
             double interceptHoldTolerance = 0.3, double interceptClearance = 1.0,
-            double interceptWaypointTolerance = 0.2)
+            double interceptWaypointTolerance = 0.2, double targetDistanceScale = 4, int pressCap = 2,
+            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30)
         {
+            TargetDistanceScale = targetDistanceScale; PressCap = pressCap; CrowdPenalty = crowdPenalty;
+            TargetSwitchMargin = targetSwitchMargin; TargetMinHoldTicks = targetMinHoldTicks;
             FlankAngle = basicActions?.FlankAngle ?? double.NaN; FlankRadius = basicActions?.FlankRadius ?? double.NaN;
             HarassMargin = basicActions?.HarassMargin ?? double.NaN;
             HarassIntervalTicks = basicActions?.HarassIntervalTicks ?? 0; HarassRecoverTicks = basicActions?.HarassRecoverTicks ?? 0;
@@ -83,6 +87,46 @@ namespace BehindTheCurtain.Core
             }
             RoleWeights = new ReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>(tables);
         }
+        // Preserve the original constructor signature for compiled callers.
+        public PuppetSettings(double interceptDistance, double spreadDistance,
+            double attackRange, double moveSpeed, double arenaHalfSize,
+            int ticksPerSecond, double distanceScale, double approachWeight,
+            double interceptWeight, double spreadWeight, double holdWeight,
+            double attackWeight, double interceptPositionFloor,
+            double persistenceBonus, double threatRadius, double keepMin,
+            double keepMax, double weightJitter, int reevaluationIntervalTicks,
+            double keepDistanceWeight, double passiveInterceptScale, double keepDistanceSpeed,
+            double attackArrivalMargin, double guardRearOffset,
+            double guardHoldScale,
+            IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights, double individualThreatInterceptScale,
+            double midAttackRange, double rangedAttackRange, double interceptStandOff,
+            double interceptHoldTolerance, double interceptClearance,
+            double interceptWaypointTolerance)
+            : this(interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, 4, 2, 0.3, 1.3, 30) { }
+
+        // Preserve the original constructor signature for compiled callers.
+        public PuppetSettings(BasicActionSettings basicActions, double interceptDistance, double spreadDistance,
+            double attackRange, double moveSpeed, double arenaHalfSize,
+            int ticksPerSecond, double distanceScale, double approachWeight,
+            double interceptWeight, double spreadWeight, double holdWeight,
+            double attackWeight, double interceptPositionFloor,
+            double persistenceBonus, double threatRadius, double keepMin,
+            double keepMax, double weightJitter, int reevaluationIntervalTicks,
+            double keepDistanceWeight, double passiveInterceptScale, double keepDistanceSpeed,
+            double attackArrivalMargin, double guardRearOffset,
+            double guardHoldScale,
+            IReadOnlyDictionary<TargetRole, IReadOnlyDictionary<string, double>>? roleWeights, double individualThreatInterceptScale,
+            double midAttackRange, double rangedAttackRange, double interceptStandOff,
+            double interceptHoldTolerance, double interceptClearance,
+            double interceptWaypointTolerance)
+            : this(basicActions, interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, 4, 2, 0.3, 1.3, 30) { }
+
+        // Provisional, arbitrarily chosen target selection tuning (metres and ticks).
+        public double TargetDistanceScale { get; }
+        public int PressCap { get; }
+        public double CrowdPenalty { get; }
+        public double TargetSwitchMargin { get; }
+        public int TargetMinHoldTicks { get; }
         // Provisional, arbitrarily chosen T16b-3a-1 tuning (degrees, metres, ticks).
         public double ApproachNonMeleeScale { get; }
         public double KeepAlignTolerance { get; }
@@ -141,7 +185,9 @@ namespace BehindTheCurtain.Core
         public double AttackWeight { get; }
         public double InterceptPositionFloor { get; }
         public double PersistenceBonus { get; }
-        internal bool IsValid => AiNumber.Weight(ApproachNonMeleeScale)
+        internal bool IsValid => Positive(TargetDistanceScale) && PressCap > 0
+            && Positive(CrowdPenalty) && CrowdPenalty <= 1 && Positive(TargetSwitchMargin)
+            && TargetSwitchMargin >= 1 && TargetMinHoldTicks >= 0 && AiNumber.Weight(ApproachNonMeleeScale)
             && AiNumber.Weight(KeepAlignTolerance) && KeepAlignTolerance <= 180 && Positive(FlankAngle) && FlankAngle <= 180 && Positive(FlankRadius)
             && Positive(HarassMargin) && HarassIntervalTicks > 0 && HarassRecoverTicks > 0
             && AiNumber.Weight(FlankNonMeleeScale) && AiNumber.Weight(HarassMeleeScale) && AiNumber.Weight(IndividualThreatInterceptScale) && ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0

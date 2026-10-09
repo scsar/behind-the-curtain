@@ -45,7 +45,7 @@ namespace BehindTheCurtain.Core
             double distance = human == null ? double.PositiveInfinity : Distance(c.Agent.Position, human.Position);
             if (id == ActionIds.Flank) return FlankSuitability(c);
             if (id == ActionIds.Surround) return SurroundSuitability(c);
-            if (id == ActionIds.Harass) return Nearest(c, Human) == null ? 0 : 1;
+            if (id == ActionIds.Harass) return HarassTarget(c) == null ? 0 : 1;
             if (id == ActionIds.Pressure)
             {
                 var threat = Threat(c, TargetFactIds.HealerThreat);
@@ -241,15 +241,17 @@ namespace BehindTheCurtain.Core
             var found = c.World.Get(fact.Value);
             return found.Success && Human(found.Value) ? found.Value : null;
         }
-        private static AgentState? ApproachTarget(UtilityContext c)
+        private AgentState? ApproachTarget(UtilityContext c)
         {
             var tactic = c.Blackboard.GetFact<TacticId>("tactic");
             return (tactic.Success && tactic.Value == TacticId.ShieldAdvance
-                ? Threat(c, TargetFactIds.RangedThreat) : null) ?? Nearest(c, Human);
+                ? Threat(c, TargetFactIds.RangedThreat) : null) ?? SelectPressureTarget(c);
         }
         private AgentState? AttackTarget(UtilityContext c)
         {
-            var target = Nearest(c, Human);
+            var target = SelectPressureTarget(c);
+            if (target != null && Distance(c.Agent.Position, target.Position) <= c.World.GetAttackRange(c.Agent.Id, settings).Value) return target;
+            target = BestTarget(c, c.World.GetAttackRange(c.Agent.Id, settings).Value);
             return target != null && Distance(c.Agent.Position, target.Position) <= c.World.GetAttackRange(c.Agent.Id, settings).Value
                 ? target : null;
         }

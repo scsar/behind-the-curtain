@@ -103,19 +103,13 @@ namespace BehindTheCurtain.Core
 
         private AgentState? HarassTarget(UtilityContext c)
         {
-            AgentState? best = null; int fewest = int.MaxValue; double closest = double.PositiveInfinity;
-            foreach (var human in c.World.GetParticipatingAgents())
-            {
-                if (!Human(human)) continue;
-                int count = 0;
-                foreach (var other in c.World.GetParticipatingAgents())
-                    if (other.Side == Side.Puppets && !other.Id.Equals(c.Agent.Id) && other.Target.HasValue
-                        && other.Target.Value.Equals(human.Id) && IsPressuring(other.CurrentAction)) count++;
-                double distance = Distance(c.Agent.Position, human.Position);
-                if (count < fewest || (count == fewest && distance < closest))
-                { best = human; fewest = count; closest = distance; }
-            }
-            return best;
+            // World actions are the previous tick snapshot; pending same-tick decisions
+            // must not enable harass in an encounter with no assigned targets yet.
+            bool hasTarget = false;
+            foreach (var other in c.World.GetParticipatingAgents())
+                if (other.Side == Side.Puppets && other.Target.HasValue) { hasTarget = true; break; }
+            if (!hasTarget) return null;
+            return SelectPressureTarget(c);
         }
 
         private (Vec2 Goal, AgentId? Target) ResolveHarass(UtilityContext c)
@@ -150,9 +144,9 @@ namespace BehindTheCurtain.Core
                 harassDirection = Direction(target.Position, c.Agent.Position, harassDirection);
             }
             // Commitment to waiting/withdrawal must not suppress an enabled ordinary
-            // attack when a human enters range (possibly a different human). Keep the
+            // attack when the harass target enters range. Keep the
             // scheduled jab and its full recovery intact; yield only outside those phases.
-            var attackTarget = AttackTarget(c);
+            var attackTarget = distance <= range ? target : null;
             bool ordinaryAttackEnabled = (settings.GetRoleWeight(c.Agent.Role, ActionIds.Attack) > 0
                 || c.Blackboard.HasIntention(c.Agent.Role + ":" + ActionIds.Attack))
                 && c.Blackboard.RoleIntention(c.Agent.Role, ActionIds.Attack) > 0;

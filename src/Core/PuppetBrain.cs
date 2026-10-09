@@ -95,6 +95,10 @@ namespace BehindTheCurtain.Core
             Reclaim();
             bool participationChanged = participationVersion != world.ParticipationVersion;
             var pending = new List<PuppetDecision>();
+            // Replace each previous target as its owner decides, without moving any agent.
+            var pressure = new Dictionary<AgentId, (string? Action, AgentId? Target)>();
+            foreach (var a in world.GetParticipatingAgents())
+                if (a.Side == Side.Puppets) pressure[a.Id] = (a.CurrentAction, a.Target);
             int ordinal = 0;
             foreach (var puppet in puppets)
             {
@@ -109,6 +113,7 @@ namespace BehindTheCurtain.Core
                     unchecked((ulong)tick - (ulong)firstTick) % (ulong)settings.ReevaluationIntervalTicks == (ulong)offset;
                 var agent = world.Get(puppet.Id).Value;
                 var context = new UtilityContext(world, agent, world.GetBlackboard(Side.Puppets).Value, tick);
+                puppet.Actions.PrepareTargets(context, pressure);
                 var selected = evaluate ? puppet.Selector.Select(tick)
                     : AiResult<UtilitySelection>.Ok(new UtilitySelection(decisions[puppet.Id].Selection.ActionId,
                         decisions[puppet.Id].Selection.EvaluatedAtTick, false, decisions[puppet.Id].Selection.Scores));
@@ -132,6 +137,8 @@ namespace BehindTheCurtain.Core
                         context.Blackboard.RoleIntention(agent.Role, selected.Value.ActionId));
                 }
                 pending.Add(decision);
+                pressure[agent.Id] = (decision.Selection.ActionId, decision.Target);
+                puppet.Actions.RememberTarget(context, decision.Selection.ActionId, decision.Target);
             }
             foreach (var decision in pending)
             {

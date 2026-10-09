@@ -48,16 +48,23 @@ public sealed class BasicActionTests
     }
 
     [Theory]
-    [InlineData(false, true, 2)]
+    [InlineData(false, true, 1)]
     [InlineData(false, false, 1)]
     [InlineData(true, false, 1)]
-    public void HarassChoosesLeastTargetedThenNearestOrOnlyHuman(bool single, bool occupied, int expected)
+    public void HarassUsesTargetScoreOrOnlyHumanAndRequiresPriorTarget(bool single, bool occupied, int expected)
     {
         var world = new World(); world.Add(Agent(1, new Vec2(3, 0), Side.Players));
         if (!single) world.Add(Agent(2, new Vec2(6, 0), Side.Players));
         if (occupied) world.Add(Agent(10, new Vec2(2, 0), role: TargetRole.Guard, action: ActionIds.Attack, target: new AgentId(1)));
         world.Add(Agent(11, new Vec2(0, 0)));
+        if (single) world.UpdateAction(new AgentId(11), ActionIds.Approach, new AgentId(1));
         var brain = Brain(world, HarassSettings()); brain.Tick(0);
+        if (!single && !occupied)
+        {
+            Assert.Equal(0, brain.GetDecision(new AgentId(11)).Value.Selection.Scores.Single(s => s.ActionId == ActionIds.Harass).Product);
+            Assert.NotEqual(ActionIds.Harass, world.Get(new AgentId(11)).Value.CurrentAction);
+            return;
+        }
         Assert.Equal(ActionIds.Harass, world.Get(new AgentId(11)).Value.CurrentAction);
         Assert.Equal(expected, brain.GetDecision(new AgentId(11)).Value.Target!.Value.Value);
     }
@@ -66,7 +73,7 @@ public sealed class BasicActionTests
     public void HarassWaitsNinetyTicksStrikesOnceAndRecoversMotionlessForThirty()
     {
         var world = new World(); world.Add(Agent(1, new Vec2(0, 0), Side.Players));
-        world.Add(Agent(11, new Vec2(0, 3)));
+        world.Add(Agent(11, new Vec2(0, 3), action: ActionIds.Approach, target: new AgentId(1)));
         var brain = Brain(world, HarassSettings());
         for (int tick = 0; tick < 90; tick++)
         {

@@ -97,14 +97,14 @@ public sealed class SurroundTests
         w.Add(Agent(10, new Vec2(1, 0), action: ActionIds.KeepDistance, target: 1));
         w.Add(Agent(11, new Vec2(2, 0), action: ActionIds.Intercept, target: 1));
         w.Add(Agent(12, new Vec2(9, 0), action: ActionIds.Approach, target: 2));
-        w.Add(Agent(20, new Vec2(6, 0)));
+        w.Add(Agent(5, new Vec2(6, 0)));
         var b = Brain(w, new PuppetSettings(new BasicActionSettings(new SurroundSettings(0, 0), flankWeight: 0, harassWeight: 1),
-            attackWeight: 0, approachWeight: 0, spreadWeight: 0, weightJitter: 0));
-        b.Tick(0); Assert.Equal(1, b.GetDecision(new AgentId(20)).Value.Target!.Value.Value);
+            attackWeight: 0, approachWeight: 0, spreadWeight: 0, weightJitter: 0, pressCap: 1));
+        b.Tick(0); Assert.Equal(1, b.GetDecision(new AgentId(5)).Value.Target!.Value.Value);
     }
 
     [Fact]
-    public void HarassRechoosesOnNewWaitingButRetainsTargetThroughStrikeRecoverAndWithdraw()
+    public void HarassRetainsTargetAcrossNewWaitingBelowPressCap()
     {
         var w = new World(); w.Add(Agent(1, new Vec2(0, 0), Side.Players));
         w.Add(Agent(2, new Vec2(10, 0), Side.Players));
@@ -123,7 +123,7 @@ public sealed class SurroundTests
             if (d.HarassPhase == HarassPhase.Recover) recover = true;
             if (d.HarassPhase == HarassPhase.Withdraw) withdraw = true;
             if (withdraw && d.HarassPhase == HarassPhase.Waiting)
-            { Assert.Equal(2, d.Target!.Value.Value); restarted = true; break; }
+            { Assert.Equal(1, d.Target!.Value.Value); restarted = true; break; }
             Assert.Equal(1, d.Target!.Value.Value);
         }
         Assert.True(strike && recover && withdraw && restarted);

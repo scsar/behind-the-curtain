@@ -16,6 +16,7 @@ public class BehaviorTuningTests
         var settings = new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1),
             approachWeight: 0, attackWeight: 0, weightJitter: 0, reevaluationIntervalTicks: 1);
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
         brain.Tick(0);
         Assert.Equal(HarassPhase.Withdraw, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
         Assert.Equal(new Vec2(0, 4.5), world.Get(new AgentId(12)).Value.Position);
@@ -27,7 +28,7 @@ public class BehaviorTuningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void HarassWaitingYieldsToEnabledOrdinaryAttackIncludingAnotherHuman(bool anotherHuman)
+    public void HarassWaitingAttacksOnlyItsRetainedTarget(bool anotherHuman)
     {
         var world = new World();
         world.Add(Agent(1, TargetRole.Attacker, new Vec2(0, 0), Side.Players));
@@ -35,15 +36,17 @@ public class BehaviorTuningTests
         var settings = new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1),
             approachWeight: 0, weightJitter: 0, reevaluationIntervalTicks: 1);
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
         brain.Tick(0);
         Assert.Equal(HarassPhase.Waiting, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
         if (anotherHuman) world.Add(Agent(2, TargetRole.Attacker, new Vec2(0, 4), Side.Players));
         else world.UpdatePosition(new AgentId(1), new Vec2(0, 1.5), new Vec2(0, 1));
         brain.Tick(1);
         var decision = brain.GetDecision(new AgentId(12)).Value;
-        Assert.Equal(ActionIds.Attack, decision.Selection.ActionId);
-        Assert.Null(decision.HarassPhase);
-        Assert.Equal(anotherHuman ? 2 : 1, decision.Target!.Value.Value);
+        Assert.Equal(anotherHuman ? ActionIds.Harass : ActionIds.Attack, decision.Selection.ActionId);
+        if (anotherHuman) Assert.Equal(HarassPhase.Waiting, decision.HarassPhase);
+        else Assert.Null(decision.HarassPhase);
+        Assert.Equal(1, decision.Target!.Value.Value);
     }
 
     [Fact]
@@ -56,6 +59,7 @@ public class BehaviorTuningTests
         var brain = PuppetBrain.Create(world,
             new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1), approachWeight: 0, weightJitter: 0),
             new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
         brain.Tick(0);
         world.UpdatePosition(new AgentId(1), new Vec2(0, 1.5), new Vec2(0, 1));
         brain.Tick(1);
@@ -72,6 +76,7 @@ public class BehaviorTuningTests
         var settings = new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1),
             approachWeight: 0, weightJitter: 0, reevaluationIntervalTicks: 1);
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
         int tick = 0;
         for (; tick < 120; tick++)
         {
