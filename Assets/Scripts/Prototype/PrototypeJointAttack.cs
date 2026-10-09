@@ -574,6 +574,7 @@ namespace BehindTheCurtain.Prototype
         private void LateUpdate()
         {
             if (plan == null || puppets == null) return;
+            UpdatePuppetTuningInput();
             if (Application.isFocused && Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
                 debugOverlay = !debugOverlay;
             Physics.SyncTransforms();
@@ -647,14 +648,15 @@ namespace BehindTheCurtain.Prototype
                 ? System.Math.Max(0, attack.CounterWindow.End - clock.Tick + 1) : 0;
             var required = plan != null ? plan.ConnectionPoints.Count : 0;
             var broken = attack != null ? (int)System.Math.Round((1d - attack.Severity) * required) : 0;
-            GUI.Box(new Rect(8f, 178f, 540f, 220f), "");
-            GUI.Label(new Rect(12f, 182f, 530f, 210f),
+            GUI.Box(new Rect(8f, 178f + (debugOverlay ? 26f : 0f), 540f, 220f), "");
+            GUI.Label(new Rect(12f, 182f + (debugOverlay ? 26f : 0f), 530f, 210f),
                 $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
                 + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
                 + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
                 + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s | 이번 사이클 피격: {cycleHitCount}\n"
                 + (clock.Tick < rangeMessageUntil ? rangeMessage : "")
                 + "\n" + ConnectionSummary());
+            DrawPuppetTuningWarning();
         }
 
         private void DrawResultOverlay()

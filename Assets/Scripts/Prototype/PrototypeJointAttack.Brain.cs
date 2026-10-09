@@ -79,17 +79,7 @@ namespace BehindTheCurtain.Prototype
             }
             previousPositions = (Vector3[])restPositions.Clone();
             previousRotations = (Quaternion[])restRotations.Clone();
-            var tuning = new PuppetSettings(settings.PuppetInterceptDistance, settings.PuppetSpreadDistance,
-                settings.PuppetAttackRange, settings.PuppetMoveSpeed,
-                settings.FloorSize / 2f - settings.PuppetSize / 2f, PrototypeSettings.TicksPerSecond,
-                settings.PuppetDistanceScale, settings.PuppetApproachWeight, settings.PuppetInterceptWeight,
-                settings.PuppetSpreadWeight, settings.PuppetHoldWeight, settings.PuppetAttackWeight,
-                settings.PuppetInterceptPositionFloor, settings.PuppetPersistenceBonus,
-                midAttackRange: settings.PuppetMidAttackRange, rangedAttackRange: settings.PuppetRangedAttackRange);
-            var created = PuppetBrain.Create(world, tuning, new DeterministicRandom(unchecked((ulong)settings.Seed)));
-            if (!created.Success) return BrainFailure(created.Failure);
-            brain = created.Value;
-            brainTuning = tuning;
+            if (!ApplyPuppetTuning(true)) return false;
             if (brainLines == null)
             {
                 brainLines = new LineRenderer[puppets.Length];
@@ -152,6 +142,8 @@ namespace BehindTheCurtain.Prototype
         private void DrawBrainOverlay()
         {
             if (!debugOverlay || brain == null || Camera.main == null) return;
+            GUI.Box(new Rect(8f, 0f, Screen.width - 16f, 26f),
+                $"판단 {brainTuning.ReevaluationIntervalTicks} ticks | 이동 {brainTuning.MoveSpeed:0.####} | 견제 {brainTuning.HarassIntervalTicks} / 회복 {brainTuning.HarassRecoverTicks} ticks | 측면 반경 {brainTuning.FlankRadius:0.####} | 기본값과 다른 항목 {PrototypePuppetTuning.Differences(appliedPuppetTuning).Length}");
             for (var i = 0; i < puppets.Length; i++)
             {
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
@@ -176,9 +168,15 @@ namespace BehindTheCurtain.Prototype
                     for (var rank = 0; rank < System.Math.Min(3, scores.Count); rank++)
                         text += $"\n{scores[rank].ActionId}: {scores[rank].Score:F3}";
                 }
-                var screen = Camera.main.WorldToScreenPoint(puppets[i].position + Vector3.up * settings.BrainLabelHeight);
+                var top = puppets[i].position.y;
+                foreach (var renderer in puppets[i].GetComponentsInChildren<Renderer>())
+                    if (renderer.enabled && !(renderer is LineRenderer)) top = Mathf.Max(top, renderer.bounds.max.y);
+                var anchor = puppets[i].position;
+                anchor.y = top + settings.BrainLabelMargin;
+                var screen = Camera.main.WorldToScreenPoint(anchor);
                 if (screen.z > 0f)
-                    GUI.Box(new Rect(screen.x - settings.BrainLabelWidth / 2f, Screen.height - screen.y,
+                    GUI.Box(new Rect(screen.x - settings.BrainLabelWidth / 2f,
+                        Mathf.Max(0f, Screen.height - screen.y - settings.BrainLabelPanelHeight),
                         settings.BrainLabelWidth, settings.BrainLabelPanelHeight), text);
             }
         }

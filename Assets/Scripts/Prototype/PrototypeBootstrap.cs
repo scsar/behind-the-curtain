@@ -10,6 +10,20 @@ namespace BehindTheCurtain.Prototype
     {
         [SerializeField] private PrototypeSettings settings = new PrototypeSettings();
 
+        [ContextMenu("인형 수치 목록 채우기")]
+        private void PopulatePuppetTuning()
+        {
+            if (settings == null) settings = new PrototypeSettings();
+            if (settings.PuppetTuning == null) settings.PuppetTuning = new List<PuppetTuningEntry>();
+            foreach (var entry in PrototypePuppetTuning.Defaults())
+                if (!settings.PuppetTuning.Exists(item => item != null &&
+                    string.Equals(item.Name, entry.Key, System.StringComparison.OrdinalIgnoreCase)))
+                    settings.PuppetTuning.Add(new PuppetTuningEntry(entry.Key, entry.Value));
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
+        }
+
         private readonly List<Material> materials = new List<Material>();
         private Transform player;
         private readonly List<Transform> puppets = new List<Transform>();

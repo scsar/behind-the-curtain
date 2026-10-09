@@ -198,9 +198,11 @@ namespace BehindTheCurtain.Prototype
         {
             if (observer == null) return;
             var profile = observer.CurrentProfile;
+            GUI.BeginGroup(new Rect(0f, debugOverlay ? 26f : 0f, Screen.width, Screen.height));
             GUI.Box(new Rect(8f, 8f, 540f, 166f), "");
             GUI.Label(new Rect(12f, 12f, 530f, 24f),
                 $"교전 {encounterNumber} | 사이클 {completedCycles}/{settings.EncounterCycles} | F1: 개발 오버레이");
+            GUI.Label(new Rect(552f, 38f, 440f, 24f), "F5: 수치 다시 적용 | F6: 수치 기록");
             if (debugOverlay)
             {
                 GUI.Label(new Rect(12f, 150f, 530f, 24f), $"대응: {tactic.Id}");
@@ -209,6 +211,7 @@ namespace BehindTheCurtain.Prototype
                 DrawTendency(98f, "원거리 지속", profile.SustainedRangedRatio, tacticSettings.SustainedRangedThreshold);
             }
             GUI.Label(new Rect(12f, 130f, 530f, 36f), "Space: 광역 근접 | F: 원거리 단일 | 좌클릭: 근접 단일");
+            GUI.EndGroup();
             if (debugOverlay && intermission)
             {
                 var memory = expedition.Memory.Value;

@@ -21,8 +21,17 @@ namespace BehindTheCurtain.Prototype
     }
 
     [Serializable]
+    public sealed class PuppetTuningEntry
+    {
+        public string Name;
+        public double Value;
+        public PuppetTuningEntry(string name, double value) { Name = name; Value = value; }
+    }
+
+    [Serializable]
     public sealed class PrototypeSettings
     {
+        public System.Collections.Generic.List<PuppetTuningEntry> PuppetTuning = new System.Collections.Generic.List<PuppetTuningEntry>();
         public const int TicksPerSecond = 30;
         public bool UseDirectorCasting = true;
         // Provisional, arbitrarily chosen lineup and casting/range/presentation tuning.
@@ -38,8 +47,6 @@ namespace BehindTheCurtain.Prototype
                 new PrototypePuppetEquipment("weapon.spear"),
                 new PrototypePuppetEquipment("weapon.bow"), new PrototypePuppetEquipment("weapon.short", "tool.mender"))
         };
-        public float PuppetMidAttackRange = 3.5f;
-        public float PuppetRangedAttackRange = 8f;
         public float CastingSummaryWidth = 780f;
         public float CastingSummaryHeight = 112f;
         // Requested expedition defaults; cone/formation/text tuning is provisional.
@@ -63,19 +70,7 @@ namespace BehindTheCurtain.Prototype
         public int Seed = 1;
         public int AttackCooldownTicks = 90;
         // Provisional T15 tuning; all decisions and movement are executed by Core.
-        public float PuppetMoveSpeed = 3f;
-        public float PuppetAttackRange = 2f;
-        public float PuppetInterceptDistance = 1.5f;
-        public float PuppetSpreadDistance = 3f;
-        public float PuppetDistanceScale = 10f;
-        public float PuppetApproachWeight = 0.2f;
-        public float PuppetInterceptWeight = 1.5f;
-        public float PuppetSpreadWeight = 0.15f;
-        public float PuppetHoldWeight = 0.1f;
-        public float PuppetAttackWeight = 0.8f;
-        public float PuppetInterceptPositionFloor = 0.6f;
-        public float PuppetPersistenceBonus = 0.02f;
-        public float BrainLabelHeight = 1.5f;
+        public float BrainLabelMargin = 0.3f; // Provisional presentation margin in world units.
         public float BrainLabelWidth = 340f;
         public float BrainLabelPanelHeight = 160f;
         public Color BrainGoalColor = Color.cyan;
