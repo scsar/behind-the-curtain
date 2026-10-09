@@ -12,7 +12,7 @@ namespace BehindTheCurtain.Core
         public string Goal { get; }
         public IReadOnlyList<string> Actions { get; }
         public static bool IsBasicAction(string action) => action == ActionIds.Approach || action == ActionIds.Attack
-            || action == ActionIds.Flank || action == ActionIds.Harass || action == ActionIds.Pressure || action == ActionIds.KeepDistance || action == ActionIds.Hold || action == ActionIds.Spread;
+            || action == ActionIds.Surround || action == ActionIds.Flank || action == ActionIds.Harass || action == ActionIds.Pressure || action == ActionIds.KeepDistance || action == ActionIds.Hold || action == ActionIds.Spread;
         public static AiResult<RoleContract> Create(string goal, IEnumerable<string>? actions)
         {
             if (string.IsNullOrWhiteSpace(goal) || actions == null) return AiResult<RoleContract>.Fail(AiFailure.InvalidInput);
@@ -26,8 +26,8 @@ namespace BehindTheCurtain.Core
             return copy.Count == 0 || !IsBasicAction(copy[copy.Count - 1])
                 ? AiResult<RoleContract>.Fail(AiFailure.InvalidAction) : AiResult<RoleContract>.Ok(new RoleContract(goal, copy));
         }
-        private static readonly RoleContract guard = Create("보호 대상의 안전", new[] { ActionIds.Intercept, ActionIds.Pressure, ActionIds.Approach }).Value;
-        private static readonly RoleContract attacker = Create("위협자 압박", new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Flank, ActionIds.Harass }).Value;
+        private static readonly RoleContract guard = Create("보호 대상의 안전", new[] { ActionIds.Intercept, ActionIds.Pressure, ActionIds.Approach, ActionIds.Surround }).Value;
+        private static readonly RoleContract attacker = Create("위협자 압박", new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround }).Value;
         private static readonly RoleContract healer = Create("아군 생존 유지", new[] { ActionIds.KeepDistance }).Value;
         public static RoleContract ForRole(TargetRole role) => role == TargetRole.Guard ? guard : role == TargetRole.Healer ? healer : attacker;
         /// <summary>Zero-based index; -1 means outside the contract.</summary>

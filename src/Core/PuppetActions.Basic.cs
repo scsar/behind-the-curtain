@@ -18,14 +18,17 @@ namespace BehindTheCurtain.Core
         internal bool HarassAttack { get; private set; }
         internal bool IsCommitted(UtilityContext c)
         {
+            if (surroundTarget.HasValue) return c.World.IsParticipating(surroundTarget.Value)
+                && Distance(c.Agent.Position, c.World.Get(surroundTarget.Value).Value.Position) > c.World.GetAttackRange(c.Agent.Id, settings).Value;
             if (harassTarget.HasValue) return c.World.IsParticipating(harassTarget.Value);
             return flankTarget.HasValue && c.World.IsParticipating(flankTarget.Value)
                 && Distance(c.Agent.Position, c.World.Get(flankTarget.Value).Value.Position) > c.World.GetAttackRange(c.Agent.Id, settings).Value;
         }
-        internal string? CommittedAction => harassTarget.HasValue ? ActionIds.Harass : flankTarget.HasValue ? ActionIds.Flank : null;
+        internal string? CommittedAction => surroundTarget.HasValue ? ActionIds.Surround : harassTarget.HasValue ? ActionIds.Harass : flankTarget.HasValue ? ActionIds.Flank : null;
 
         internal void ResetBasicActions()
         {
+            ResetSurround();
             flankTarget = null; harassTarget = null; Phase = null; HarassAttack = false;
         }
 
@@ -107,7 +110,7 @@ namespace BehindTheCurtain.Core
                 int count = 0;
                 foreach (var other in c.World.GetParticipatingAgents())
                     if (other.Side == Side.Puppets && !other.Id.Equals(c.Agent.Id) && other.Target.HasValue
-                        && other.Target.Value.Equals(human.Id)) count++;
+                        && other.Target.Value.Equals(human.Id) && IsPressuring(other.CurrentAction)) count++;
                 double distance = Distance(c.Agent.Position, human.Position);
                 if (count < fewest || (count == fewest && distance < closest))
                 { best = human; fewest = count; closest = distance; }

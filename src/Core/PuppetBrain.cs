@@ -17,6 +17,7 @@ namespace BehindTheCurtain.Core
         public Vec2 Goal { get; }
         public AgentId? Target { get; }
         public HarassPhase? HarassPhase { get; internal set; }
+        public int? SurroundSlot { get; internal set; }
         public DecisionCause? Cause { get; internal set; }
     }
 
@@ -102,7 +103,7 @@ namespace BehindTheCurtain.Core
                 // Only ally-dependent decisions need immediate invalidation. Unrelated approach/attack
                 // decisions retain their staggered cadence when another puppet leaves or reconnects.
                 bool dependsOnAllies = decisions.TryGetValue(puppet.Id, out var prior) &&
-                    (prior.Selection.ActionId == ActionIds.Intercept || prior.Selection.ActionId == ActionIds.Spread ||
+                    (prior.Selection.ActionId == ActionIds.Surround || prior.Selection.ActionId == ActionIds.Intercept || prior.Selection.ActionId == ActionIds.Spread ||
                      prior.Selection.ActionId == ActionIds.KeepDistance);
                 bool evaluate = (participationChanged && dependsOnAllies) || !decisions.ContainsKey(puppet.Id) ||
                     unchecked((ulong)tick - (ulong)firstTick) % (ulong)settings.ReevaluationIntervalTicks == (ulong)offset;
@@ -121,7 +122,7 @@ namespace BehindTheCurtain.Core
                 if (puppet.Actions.HarassAttack)
                     selected = AiResult<UtilitySelection>.Ok(new UtilitySelection(ActionIds.Attack,
                         selected.Value.EvaluatedAtTick, selected.Value.Reevaluated, selected.Value.Scores));
-                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role, HarassPhase = puppet.Actions.Phase };
+                var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role, HarassPhase = puppet.Actions.Phase, SurroundSlot = puppet.Actions.SurroundSlot };
                 if (selected.Value.ActionId != null && (selected.Value.ActionId == ActionIds.Waver || settings.GetRoleWeight(agent.Role, selected.Value.ActionId) == 0))
                 {
                     PuppetStateEvent? cause = null;

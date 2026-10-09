@@ -99,7 +99,7 @@ public sealed class BasicActionTests
     public void NewActionsAreBasicPrimaryOptionsWithConfiguredWeaponPreferences()
     {
         var contract = RoleContract.ForRole(TargetRole.Attacker);
-        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Flank, ActionIds.Harass }, contract.Actions);
+        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround }, contract.Actions);
         foreach (string action in new[] { ActionIds.Flank, ActionIds.Harass })
         {
             Assert.True(RoleContract.IsBasicAction(action)); Assert.Equal(ContractActionKind.Primary, contract.Classify(action));
@@ -151,6 +151,7 @@ public sealed class BasicActionTests
         var r = PuppetSimulation.Run(name, 1, null, null, null, "none", loadout == "mixed", loadout: loadout);
         Assert.Equal(0, r.FleeTicks); Assert.Equal(0, r.JitterFailures); Assert.Equal(0, r.InactivityFailures);
         Assert.Equal(0, r.PingPongs); Assert.Equal(0, r.MissedAttackWindows);
+        Assert.Equal(0, r.SurroundReservationConflicts);
         Assert.True(r.MaxSwitchesInWindow <= 3); Assert.True(r.SimultaneousRatio < .2); Assert.InRange(r.MaxInterceptors, 0, 1);
         VerifyOccupancyAndDeterminism(name, loadout);
     }

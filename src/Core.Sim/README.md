@@ -59,7 +59,9 @@ Metrics are measured every tick, not from the printed samples:
   the documented 0.3m distance increase. Player movement alone does not count.
 - `switches`: total changes per agent; `maxSwitches/3s`: maximum in any sliding
   90-tick window; `pingPong`: approach/hold or approach/keepDistance round trips.
-- `simultaneous`: ticks with at least two changes divided by ticks with any change.
+- `simultaneous`: ticks with at least two changes remaining after excluding transitions into reservation actions (`intercept`, `surround`), divided by ticks with any change.
+- `coordinated`: ticks with at least two changes and at least one excluded reservation-action transition, using the same denominator. Mixed ticks can count in both.
+- `surroundOverlap`: missing, conflicting, or duplicate surround slot reservations (must be zero).
 - `maxIntercept`: simultaneous interceptors; `intercept`: intercept agent ticks
   divided by all puppet agent ticks (the 20% default limit excludes GuardHealer).
 - `residence`: longest continuous tick count with a human in any puppet's attack

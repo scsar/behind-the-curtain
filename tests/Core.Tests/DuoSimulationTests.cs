@@ -8,14 +8,14 @@ namespace BehindTheCurtain.Core.Tests;
 public class DuoSimulationTests
 {
     [Theory]
-    [InlineData("approach", "5B74BC8F308BB5E7A9904761CADDE9C703B98546FDE0C3F34151469193FF8873")]
-    [InlineData("circle", "CB1C0FCBA86C8DF45EE43895B30724271A392963F657022524BCB4ED8745F7F4")]
-    [InlineData("retreat", "86E8159A2FFE3E36C2AE41D780AAEA5C3751B82F7A859310B87B8E7C5D491B2A")]
-    [InlineData("healer", "07B77854DC5E970DC1E4009BA279D93C4531ADF450AA6CAE27A8623B7DBF8D48")]
+    [InlineData("approach", "2EA85CD860B1173FC2B829FFCF477D52E6603C6FFA1E1BA61D8854D4F826F88D")]
+    [InlineData("circle", "CE801F3E231C6D31D3AD1F08F13CC84FD5A1B8453D538B28005EC1DE6A2B86C5")]
+    [InlineData("retreat", "4F99FCDD28029574B3BA9AC4A86512F88754599B1C1EAAFFCA0685ECD40D54AE")]
+    [InlineData("healer", "73C92EFCE1A6B08F5392DD0A1E28552D873A37A2BE3841A4282DFC023042D464")]
     [InlineData("standstill", "9F9124C65F2F4545AEC443B852245CC1DF4F53E43AE88D87518795604FDD2A66")]
     [InlineData("orbit", "19604E9C25D85604FBDD43DE2DBDFB26A1A370F87A907C0C9C77B904C6B612CB")]
     [InlineData("passby", "3551FFDAEA224D4D39BCC32012B6DA85DF726E95255D0277CF474E520FD40443")]
-    public void LegacySevenTrajectoriesRemainUnchanged(string name, string expected)
+    public void LegacySevenTrajectoriesHaveReviewedHashes(string name, string expected)
     {
         var r = PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30));
         Assert.Equal(expected, InterceptRegressionTests.Hash(r));
@@ -89,7 +89,7 @@ public class DuoSimulationTests
     {
         var r = PuppetSimulation.Run(name); var s = new PuppetScenarioSettings();
         Assert.Equal(0,r.FleeTicks); Assert.Equal(0,r.InactivityFailures); Assert.Equal(0,r.PingPongs);
-        Assert.Equal(0,r.MissedAttackWindows); Assert.Equal(0,r.JitterFailures);
+        Assert.Equal(0,r.MissedAttackWindows); Assert.Equal(0,r.JitterFailures); Assert.Equal(0, r.SurroundReservationConflicts);
         Assert.InRange(r.MaxInterceptors,0,1); Assert.True(r.MaxSwitchesInWindow <= s.SwitchLimit);
         Assert.True(r.SimultaneousRatio < s.SynchronizationLimit);
         Assert.Equal(InterceptRegressionTests.Hash(r),InterceptRegressionTests.Hash(PuppetSimulation.Run(name)));

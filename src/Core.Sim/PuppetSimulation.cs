@@ -87,6 +87,9 @@ public sealed class PuppetTrajectory
     public Dictionary<int, List<int>> Switches { get; } = new();
     public int ChangedTicks { get; internal set; }
     public int SimultaneousTicks { get; internal set; }
+    public int CoordinatedTicks { get; internal set; }
+    public double CoordinatedRatio => ChangedTicks == 0 ? 0 : (double)CoordinatedTicks / ChangedTicks;
+    public int SurroundReservationConflicts { get; internal set; }
     public double SimultaneousRatio => ChangedTicks == 0 ? 0 : (double)SimultaneousTicks / ChangedTicks;
     public bool HasHealerThreat { get; internal set; }
     public int MaxInterceptors { get; internal set; }
@@ -204,7 +207,7 @@ public static class PuppetSimulation
             result.Frames.Add(new PuppetFrame(tick, player, after) { Players = players,
                 HarassPhases = after.ToDictionary(a => a.Id.Value, a => brain.GetDecision(a.Id).Success ? brain.GetDecision(a.Id).Value.HarassPhase : null), States = world.GetPuppetStates().ToArray(),
                 TuneTarget = brain.TuneTarget, TuneAmount = brain.TuneAmount, Budget = brain.CurrentTuneBudgetPerSecond });
-            int changed = 0;
+            var changedActions = new List<string?>();
             for (int i = 0; i < after.Length; i++)
             {
                 var a = after[i]; int id = a.Id.Value;
@@ -245,7 +248,7 @@ public static class PuppetSimulation
                 }
                 else if (world.CanAct(a.Id) && a.CurrentAction != before[i].CurrentAction)
                 {
-                    changed++;
+                    changedActions.Add(a.CurrentAction);
                     // Resuming after Groggy is a new action, not an action-to-action oscillation.
                     bool wasActive = result.Frames[tick - 1].States.Single(s => s.Id.Equals(a.Id)).Status == PuppetStatus.Active;
                     if (wasActive) result.Switches[id].Add(tick);
@@ -284,8 +287,16 @@ public static class PuppetSimulation
                 result.NonHealerTargetTicks++;
                 if (nonHealers.All(a => a.Target.HasValue && a.Target.Equals(nonHealers[0].Target))) result.ConcentratedTicks++;
             }
-            if (changed > 0) result.ChangedTicks++;
-            if (changed >= 2) result.SimultaneousTicks++;
+            RecordActionChanges(result, changedActions);
+            var slots = new HashSet<string>();
+            foreach (var a in after.Where(a => a.CurrentAction == ActionIds.Surround && a.Target.HasValue))
+            {
+                var decision = brain.GetDecision(a.Id).Value;
+                string key = "surround:" + a.Target!.Value.Value + ":" + decision.SurroundSlot;
+                var reservation = world.GetBlackboard(Side.Puppets).Value.GetReservation(key, tick);
+                if (!decision.SurroundSlot.HasValue || !slots.Add(key) || !reservation.Success || !reservation.Value.Owner.Equals(a.Id))
+                    result.SurroundReservationConflicts++;
+            }
             int interceptors = after.Count(a => a.CurrentAction == ActionIds.Intercept);
             result.MaxInterceptors = Math.Max(result.MaxInterceptors, interceptors);
             result.InterceptAgentTicks += interceptors;
@@ -325,6 +336,18 @@ public static class PuppetSimulation
         }
     }
 
+    /// <summary>Reservation-action transitions are coordinated; two remaining changes are a swarm tick.
+    /// Coordinated counts simultaneous ticks containing at least one excluded transition.
+    /// A tick can contain both coordination and unrelated swarm transitions.</summary>
+    public static void RecordActionChanges(PuppetTrajectory result, IEnumerable<string?> actions)
+    {
+        var changed = actions.ToArray();
+        int coordinated = changed.Count(a => a == ActionIds.Intercept || a == ActionIds.Surround);
+        if (changed.Length > 0) result.ChangedTicks++;
+        if (changed.Length - coordinated >= 2) result.SimultaneousTicks++;
+        if (changed.Length >= 2 && coordinated > 0) result.CoordinatedTicks++;
+    }
+
     public static double Distance(Vec2 a, Vec2 b) => Math.Sqrt((a.X-b.X)*(a.X-b.X)+(a.Z-b.Z)*(a.Z-b.Z));
 
     public static void Print(PuppetTrajectory result, TextWriter output, PuppetScenarioSettings? settings = null)
@@ -344,11 +367,11 @@ public static class PuppetSimulation
         foreach (var e in result.Events)
             output.WriteLine(FormattableString.Invariant($"event tick={e.Tick} agent={e.AgentId.Value} {e.Kind} {e.Cause.Kind} {e.Before.Status}->{e.After.Status} value={e.ValueId} T={e.Before.Tension:F4}->{e.After.Tension:F4} P={e.Before.Posture:F2}->{e.After.Posture:F2} H={e.Before.Health:F2}->{e.After.Health:F2} reclaim={e.ReclaimedAmount:F3} budget={e.BudgetAfter:F3}"));
         output.WriteLine(FormattableString.Invariant(
-            $"inactive={result.InactivityFailures} longestInactive={result.LongestInactiveTicks} flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs} jitter={result.JitterFailures} maxReversals/1s={string.Join(",", result.MaxDirectionReversals.Select(p => p.Key + ":" + p.Value))}"));
+            $"inactive={result.InactivityFailures} longestInactive={result.LongestInactiveTicks} flee={result.FleeTicks} switches={string.Join(",", result.Switches.Select(p => p.Key + ":" + p.Value.Count))} simultaneous={result.SimultaneousRatio:P1} coordinated={result.CoordinatedRatio:P1} surroundOverlap={result.SurroundReservationConflicts} maxIntercept={result.MaxInterceptors} intercept={result.InterceptRatio:P1} attackTicks={result.AttackTicks} residence={result.LongestAttackResidence} missedAttack={result.MissedAttackWindows} maxSwitches/3s={result.MaxSwitchesInWindow} pingPong={result.PingPongs} jitter={result.JitterFailures} maxReversals/1s={string.Join(",", result.MaxDirectionReversals.Select(p => p.Key + ":" + p.Value))}"));
         output.WriteLine(result.InterceptAgentTicks == 0 ? "interceptQuality ticks=0 n/a(막아서기 없음)" :
             FormattableString.Invariant($"interceptQuality ticks={result.InterceptAgentTicks} settled={result.InterceptSettledTicks} within1m={result.InterceptQualityRatio:P1} mean={result.InterceptMeanDistance:F3}m travel={result.InterceptTravel:F3}m"));
         output.WriteLine("actionOccupancy " + string.Join(" ", new[] { ActionIds.Approach, ActionIds.Attack, ActionIds.Hold, ActionIds.Intercept,
-            ActionIds.Spread, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Waver, ActionIds.Flank, ActionIds.Harass, "none" }
+            ActionIds.Spread, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Waver, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround, "none" }
             .Select(id => FormattableString.Invariant($"{id}={result.ActionAgentTicks.GetValueOrDefault(id)}({(double)result.ActionAgentTicks.GetValueOrDefault(id) / result.ActionAgentTicks.Values.Sum():P1})"))));
         if (result.TargetAgentTicks.Count > 0)
             output.WriteLine(FormattableString.Invariant($"targetDistribution total={result.TargetedAgentTicks} ") +

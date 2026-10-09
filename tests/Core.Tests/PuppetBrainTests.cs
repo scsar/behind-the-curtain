@@ -299,7 +299,7 @@ public sealed class PuppetBrainTests
         Assert.False(brain.GetDecision(new AgentId(10)).Success);
         Run(brain, 0, 1);
         var snapshot = brain.GetDecision(new AgentId(10)).Value;
-        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread, ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Flank, ActionIds.Harass, ActionIds.Waver },
+        Assert.Equal(new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread, ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround, ActionIds.Waver },
             snapshot.Selection.Scores.Select(s => s.ActionId));
         Assert.Single(Score(brain, 10, ActionIds.Intercept).Considerations);
         foreach (var score in snapshot.Selection.Scores)

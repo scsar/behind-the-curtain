@@ -63,6 +63,8 @@ namespace BehindTheCurtain.Core
             foreach (TargetRole role in System.Enum.GetValues(typeof(TargetRole)))
             {
                 var row = new Dictionary<string, double> {
+                    [ActionIds.Surround] = role == TargetRole.Attacker ? basicActions?.SurroundWeight ?? double.NaN
+                        : role == TargetRole.Guard ? basicActions?.SurroundGuardWeight ?? double.NaN : 0,
                     [ActionIds.Flank] = role == TargetRole.Attacker ? flankWeight : 0,
                     [ActionIds.Harass] = role == TargetRole.Attacker ? harassWeight : 0,
                     [ActionIds.Waver] = 0,

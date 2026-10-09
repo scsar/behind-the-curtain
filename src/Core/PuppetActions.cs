@@ -19,11 +19,11 @@ namespace BehindTheCurtain.Core
         {
             var result = new List<UtilityAction>();
             foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
-                ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Flank, ActionIds.Harass })
+                ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround })
             {
                 if (id == ActionIds.Pressure && (role != TargetRole.Guard || loadout.HasCapability(CapabilityTag.Protect))) continue;
                 double weight = RoleContract.ForRole(role).EffectiveWeight(settings, loadout, id);
-                double preference = id == ActionIds.Flank ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.FlankNonMeleeScale)
+                double preference = (id == ActionIds.Flank || id == ActionIds.Surround) ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.FlankNonMeleeScale)
                     : id == ActionIds.Harass ? (loadout.RangeBand == RangeBand.Melee ? settings.HarassMeleeScale : 1)
                     : id == ActionIds.Approach ? (loadout.RangeBand == RangeBand.Melee ? 1 : settings.ApproachNonMeleeScale) : 1;
                 double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
@@ -44,6 +44,7 @@ namespace BehindTheCurtain.Core
             var human = Nearest(c, Human);
             double distance = human == null ? double.PositiveInfinity : Distance(c.Agent.Position, human.Position);
             if (id == ActionIds.Flank) return FlankSuitability(c);
+            if (id == ActionIds.Surround) return SurroundSuitability(c);
             if (id == ActionIds.Harass) return Nearest(c, Human) == null ? 0 : 1;
             if (id == ActionIds.Pressure)
             {
@@ -93,6 +94,8 @@ namespace BehindTheCurtain.Core
 
         internal (Vec2 Goal, AgentId? Target) Resolve(UtilityContext c, string? action)
         {
+            if (action != ActionIds.Surround) ResetSurround();
+            if (action == ActionIds.Surround) return ResolveSurround(c);
             if (action == ActionIds.Flank) return ResolveFlank(c);
             if (action == ActionIds.Harass) return ResolveHarass(c);
             ResetBasicActions();
@@ -206,6 +209,7 @@ namespace BehindTheCurtain.Core
 
         internal Vec2 ConstrainMovement(UtilityContext c, string? action, Vec2 next)
         {
+            if (action == ActionIds.Surround) return ConstrainSurround(c, next);
             if (action == ActionIds.Flank) return ConstrainFlank(c, next);
             if (action == ActionIds.Harass) return next;
             if (action == ActionIds.Spread || action == ActionIds.Intercept || action == ActionIds.Pressure) return next;

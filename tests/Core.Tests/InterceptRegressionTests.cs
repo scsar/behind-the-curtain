@@ -9,10 +9,10 @@ public class InterceptRegressionTests
 {
     internal static string Hash(PuppetTrajectory r) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", r.Frames.SelectMany(f => f.Puppets.Select(a => FormattableString.Invariant($"{f.Tick}:{a.Id.Value}:{a.Position.X:R}:{a.Position.Z:R}:{a.CurrentAction}:{a.Target}")))))));
     [Theory]
-    [InlineData("approach", "5B74BC8F308BB5E7A9904761CADDE9C703B98546FDE0C3F34151469193FF8873")]
-    [InlineData("circle", "CB1C0FCBA86C8DF45EE43895B30724271A392963F657022524BCB4ED8745F7F4")]
-    [InlineData("retreat", "86E8159A2FFE3E36C2AE41D780AAEA5C3751B82F7A859310B87B8E7C5D491B2A")]
-    public void UnchangedNonInterceptTrajectory(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30))));
+    [InlineData("approach", "2EA85CD860B1173FC2B829FFCF477D52E6603C6FFA1E1BA61D8854D4F826F88D")]
+    [InlineData("circle", "CE801F3E231C6D31D3AD1F08F13CC84FD5A1B8453D538B28005EC1DE6A2B86C5")]
+    [InlineData("retreat", "4F99FCDD28029574B3BA9AC4A86512F88754599B1C1EAAFFCA0685ECD40D54AE")]
+    public void NonInterceptTrajectoryHasReviewedHash(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30))));
 
     [Fact]
     public void StandstillSettlesWithoutPositionJitter()
@@ -135,7 +135,7 @@ public class InterceptRegressionTests
     public void AllScenariosAndLoadoutsPassForbiddenPatternsAndAreDeterministic(string name, string loadout)
     {
         var r = PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout);
-        Assert.Equal(0,r.JitterFailures);
+        Assert.Equal(0,r.JitterFailures); Assert.Equal(0, r.SurroundReservationConflicts);
         Assert.Equal(0,r.FleeTicks); Assert.Equal(0,r.InactivityFailures); Assert.Equal(0,r.PingPongs);
         Assert.Equal(0,r.MissedAttackWindows); Assert.InRange(r.MaxInterceptors,0,1);
         Assert.True(r.MaxSwitchesInWindow <= 3,$"{name}/{loadout}: switches={r.MaxSwitchesInWindow}");

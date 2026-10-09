@@ -5,6 +5,7 @@ namespace BehindTheCurtain.Core
 {
     public static class ActionIds
     {
+        public const string Surround = "surround";
         public const string Flank = "flank";
         public const string Harass = "harass";
         public const string Pressure = "pressure";

@@ -80,6 +80,12 @@ namespace BehindTheCurtain.Core
                 : AiResult<Reservation>.Fail(AiFailure.ReservationNotFound);
         }
 
+        internal void ReleaseReservation(string key, AgentId owner)
+        {
+            if (reservations.TryGetValue(key, out var reservation) && reservation.Owner.Equals(owner))
+                reservations.Remove(key);
+        }
+
         private void Advance(long tick)
         {
             lastTick = tick;
