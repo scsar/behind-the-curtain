@@ -416,6 +416,8 @@ MonoBehaviour:
       Value: 0.5
     - Name: BasicActionSettings.keepAlignTolerance
       Value: 20
+    - Name: BasicActionSettings.harassWithdrawMaxTicks
+      Value: 60
     - Name: PuppetSettings.interceptDistance
       Value: 1.5
     - Name: PuppetSettings.spreadDistance
