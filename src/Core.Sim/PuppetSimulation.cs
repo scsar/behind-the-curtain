@@ -105,6 +105,13 @@ public sealed class PuppetTrajectory
 
 public static class PuppetSimulation
 {
+    internal static bool HasHarassResponse(PuppetFrame frame) => frame.Puppets.Any(a =>
+        a.CurrentAction == ActionIds.Harass && frame.HarassPhases.GetValueOrDefault(a.Id.Value)
+            is HarassPhase.Strike or HarassPhase.Recover or HarassPhase.Withdraw);
+
+    internal static int NextNoAttackTicks(bool inRange, bool attacking, int noAttack) =>
+        inRange && !attacking ? noAttack + 1 : 0;
+
     public static readonly string[] Names = { "approach", "circle", "retreat", "healer", "standstill", "orbit", "passby", "duo", "duo-swap" };
 
     public static PuppetTrajectory Run(string name, ulong seed = 1, IntentionSettings? intentions = null,
@@ -304,9 +311,10 @@ public static class PuppetSimulation
             bool inRange = before.Any(a => world.CanAct(a.Id) && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Intercept && after.Single(b => b.Id.Equals(a.Id)).CurrentAction != ActionIds.Waver && Distance(a.Position, duo ? TargetPosition(after.Single(b => b.Id.Equals(a.Id))) : player) <= world.GetAttackRange(a.Id, settings).Value);
             bool attacking = after.Any(a => a.CurrentAction == ActionIds.Attack && a.Target.HasValue
                 && Distance(a.Position, duo ? TargetPosition(after.Single(b => b.Id.Equals(a.Id))) : player) <= world.GetAttackRange(a.Id, settings).Value);
+            attacking |= HasHarassResponse(result.Frames[result.Frames.Count - 1]);
             if (attacking) result.AttackTicks++;
             residence = inRange ? residence + 1 : 0;
-            noAttack = inRange && !attacking ? noAttack + 1 : 0;
+            noAttack = NextNoAttackTicks(inRange, attacking, noAttack);
             result.LongestAttackResidence = Math.Max(result.LongestAttackResidence, residence);
             if (noAttack > settings.TicksPerSecond) result.MissedAttackWindows++;
         }

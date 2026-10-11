@@ -68,7 +68,7 @@ public class BehaviorTuningTests
     }
 
     [Fact]
-    public void HarassOrdinaryAttackWaitsForFullScheduledStrikeRecovery()
+    public void HarassStationaryTargetCompletesCycleAndRestartsInterval()
     {
         var world = new World();
         world.Add(Agent(1, TargetRole.Attacker, new Vec2(0, 0), Side.Players));
@@ -90,9 +90,100 @@ public class BehaviorTuningTests
             Assert.Equal(HarassPhase.Recover, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
             Assert.Equal(ActionIds.Harass, world.Get(new AgentId(12)).Value.CurrentAction);
         }
-        brain.Tick(tick + settings.HarassRecoverTicks + 1);
-        Assert.Equal(ActionIds.Attack, world.Get(new AgentId(12)).Value.CurrentAction);
-        Assert.Null(brain.GetDecision(new AgentId(12)).Value.HarassPhase);
+        int waiting = -1;
+        for (int t = tick + settings.HarassRecoverTicks + 1; t < tick + 100; t++)
+        {
+            brain.Tick(t);
+            var phase = brain.GetDecision(new AgentId(12)).Value.HarassPhase;
+            if (phase == HarassPhase.Waiting) { waiting = t; break; }
+            Assert.Equal(HarassPhase.Withdraw, phase);
+            Assert.NotEqual(ActionIds.Attack, world.Get(new AgentId(12)).Value.CurrentAction);
+        }
+        Assert.True(waiting > tick + settings.HarassRecoverTicks + 1);
+        Assert.InRange(PuppetSimulation.Distance(world.Get(new AgentId(12)).Value.Position, new Vec2(0, 0)),
+            settings.AttackRange + settings.HarassMargin - settings.AttackArrivalMargin, settings.AttackRange + settings.HarassMargin);
+        for (int t = waiting + 1; t < waiting + settings.HarassIntervalTicks; t++)
+        {
+            brain.Tick(t);
+            Assert.Equal(HarassPhase.Waiting, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
+        }
+        brain.Tick(waiting + settings.HarassIntervalTicks);
+        Assert.Equal(HarassPhase.Strike, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
+        bool second = false;
+        for (int t = waiting + settings.HarassIntervalTicks + 1; t < waiting + settings.HarassIntervalTicks + 40; t++)
+        {
+            brain.Tick(t);
+            if (world.Get(new AgentId(12)).Value.CurrentAction != ActionIds.Attack) continue;
+            Assert.Equal(HarassPhase.Recover, brain.GetDecision(new AgentId(12)).Value.HarassPhase);
+            second = true; break;
+        }
+        Assert.True(second);
+    }
+
+    [Theory]
+    [InlineData(60, false)] [InlineData(20, false)]
+    [InlineData(60, true)] [InlineData(20, true)]
+    public void HarassFollowerForcesJabExactlyAtWithdrawLimit(int limit, bool fromWaiting)
+    {
+        var world = new World();
+        world.Add(Agent(1, TargetRole.Attacker, new Vec2(0, 0), Side.Players));
+        world.Add(Agent(12, TargetRole.Attacker, new Vec2(0, fromWaiting ? 2.5 : 3)));
+        var settings = new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1, harassWithdrawMaxTicks: limit),
+            approachWeight: 0, weightJitter: 0, reevaluationIntervalTicks: 1);
+        var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
+        int withdraw = -1;
+        for (int t = 0; t < 300; t++)
+        {
+            if (withdraw >= 0)
+            {
+                var p = world.Get(new AgentId(12)).Value.Position;
+                world.UpdatePosition(new AgentId(1), new Vec2(p.X, p.Z - .8 * settings.AttackRange), new Vec2(0, 1));
+            }
+            brain.Tick(t);
+            var phase = brain.GetDecision(new AgentId(12)).Value.HarassPhase;
+            if (phase == HarassPhase.Withdraw && withdraw < 0) withdraw = t;
+            if (withdraw < 0) continue;
+            if (t == withdraw + limit)
+            {
+                Assert.Equal(HarassPhase.Recover, phase);
+                Assert.Equal(ActionIds.Attack, world.Get(new AgentId(12)).Value.CurrentAction);
+                return;
+            }
+            Assert.Equal(HarassPhase.Withdraw, phase);
+            Assert.NotEqual(ActionIds.Attack, world.Get(new AgentId(12)).Value.CurrentAction);
+        }
+        Assert.Fail("Withdraw limit was not reached.");
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void HarassSlowApproachPreservesIntervalUnlessTargetChanges(bool changeTarget)
+    {
+        var world = new World();
+        world.Add(Agent(1, TargetRole.Attacker, new Vec2(0, 0), Side.Players));
+        world.Add(Agent(12, TargetRole.Attacker, new Vec2(0, 2.98)));
+        var settings = new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 1),
+            approachWeight: 0, attackWeight: 0, weightJitter: 0, reevaluationIntervalTicks: 1);
+        var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(1)).Value;
+        world.UpdateAction(new AgentId(12), ActionIds.Approach, new AgentId(1));
+        int id = 1, start = 0;
+        for (int t = 0; t <= 120; t++)
+        {
+            if (changeTarget && t == 30)
+            {
+                world.UpdatePosition(new AgentId(1), new Vec2(0, -25), new Vec2(0, 1));
+                id = 2; start = t;
+                world.Add(Agent(id, TargetRole.Attacker, new Vec2(0, .3), Side.Players));
+            }
+            world.UpdatePosition(new AgentId(id), new Vec2(0, t * .01), new Vec2(0, 1));
+            brain.Tick(t);
+            var phase = brain.GetDecision(new AgentId(12)).Value.HarassPhase;
+            Assert.True(PuppetSimulation.Distance(world.Get(new AgentId(12)).Value.Position, world.Get(new AgentId(id)).Value.Position) > settings.AttackRange);
+            if (t < start + settings.HarassIntervalTicks) Assert.NotEqual(HarassPhase.Strike, phase);
+            else { Assert.Equal(HarassPhase.Strike, phase); return; }
+        }
+        Assert.Fail("Strike was postponed.");
     }
 
     [Theory]
@@ -187,6 +278,7 @@ public class BehaviorTuningTests
     {
         foreach (var actions in new[] { new BasicActionSettings(approachNonMeleeScale: -1),
             new BasicActionSettings(approachNonMeleeScale: double.NaN), new BasicActionSettings(keepAlignTolerance: -1),
+            new BasicActionSettings(harassWithdrawMaxTicks: 0), new BasicActionSettings(harassWithdrawMaxTicks: -1),
             new BasicActionSettings(keepAlignTolerance: 181), new BasicActionSettings(keepAlignTolerance: double.PositiveInfinity) })
             Assert.Equal(AiFailure.InvalidSettings, PuppetBrain.Create(new World(), new PuppetSettings(actions), new DeterministicRandom(1)).Failure);
     }

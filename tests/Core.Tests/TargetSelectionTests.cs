@@ -155,8 +155,8 @@ public class TargetSelectionTests
     [Theory]
     [InlineData("duo","presets","8FF9EF4A2650B110744C912C63A9FCDEEF835671248255713109CA10026B0D62")]
     [InlineData("duo-swap","presets","2453B283F7A6906FC277D27EA1F352464CAD6C67D59268C5E48D73F6B583258E")]
-    [InlineData("duo","mixed","109B7B9AA8BC428E1B787DE29DC5E195B423B9AD66E3D30E90984958B457B4F4")]
-    [InlineData("duo-swap","mixed","E2307545D6C8A2769BF7F1BBAE534FED965A0A54049AC6C6FF4104106F3DE819")]
+    [InlineData("duo","mixed","01E000D757A201CAFCEC6AB78A271EF9C32A44CD3D2AD4740CF434207EE55D56")]
+    [InlineData("duo-swap","mixed","38E041EBDEB6F02D7D5E5C6AE372489C04C27F438C2DC8C042712B5605F2E8E9")]
     public void DuoTrajectoriesHaveReviewedHashes(string name,string loadout,string expected)
         {
         string actual = InterceptRegressionTests.Hash(PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout));

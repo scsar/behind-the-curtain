@@ -14,17 +14,18 @@ namespace BehindTheCurtain.Core
         public BasicActionSettings(double flankAngle = 90, double flankRadius = 3.5, double harassMargin = 1,
             int harassIntervalTicks = 90, int harassRecoverTicks = 30, double flankNonMeleeScale = .3,
             double harassMeleeScale = .3, double flankWeight = .3, double harassWeight = .3,
-            double approachNonMeleeScale = .5, double keepAlignTolerance = 20)
-            : this(new SurroundSettings(), flankAngle, flankRadius, harassMargin, harassIntervalTicks, harassRecoverTicks, flankNonMeleeScale, harassMeleeScale, flankWeight, harassWeight, approachNonMeleeScale, keepAlignTolerance) { }
+            double approachNonMeleeScale = .5, double keepAlignTolerance = 20, int harassWithdrawMaxTicks = 60)
+            : this(new SurroundSettings(), flankAngle, flankRadius, harassMargin, harassIntervalTicks, harassRecoverTicks, flankNonMeleeScale, harassMeleeScale, flankWeight, harassWeight, approachNonMeleeScale, keepAlignTolerance, harassWithdrawMaxTicks) { }
 
         /// <summary>Provisional, arbitrarily chosen surround weights.</summary>
         public BasicActionSettings(SurroundSettings surround, double flankAngle = 90, double flankRadius = 3.5, double harassMargin = 1,
             int harassIntervalTicks = 90, int harassRecoverTicks = 30, double flankNonMeleeScale = .3,
             double harassMeleeScale = .3, double flankWeight = .3, double harassWeight = .3,
-            double approachNonMeleeScale = .5, double keepAlignTolerance = 20)
+            double approachNonMeleeScale = .5, double keepAlignTolerance = 20, int harassWithdrawMaxTicks = 60)
         {
             SurroundWeight = surround?.AttackerWeight ?? double.NaN; SurroundGuardWeight = surround?.GuardWeight ?? double.NaN;
             FlankAngle = flankAngle; FlankRadius = flankRadius; HarassMargin = harassMargin;
+            HarassWithdrawMaxTicks = harassWithdrawMaxTicks;
             HarassIntervalTicks = harassIntervalTicks; HarassRecoverTicks = harassRecoverTicks;
             FlankNonMeleeScale = flankNonMeleeScale; HarassMeleeScale = harassMeleeScale;
             FlankWeight = flankWeight; HarassWeight = harassWeight;
@@ -37,6 +38,7 @@ namespace BehindTheCurtain.Core
         public double HarassMargin { get; }
         public int HarassIntervalTicks { get; }
         public int HarassRecoverTicks { get; }
+        public int HarassWithdrawMaxTicks { get; }
         public double FlankNonMeleeScale { get; }
         public double HarassMeleeScale { get; }
         public double ApproachNonMeleeScale { get; }

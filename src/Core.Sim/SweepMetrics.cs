@@ -97,6 +97,103 @@ public static class SweepMetrics
         }
         return (total, runs);
     }
+    internal static Dictionary<string, int> ForbiddenPatterns(PuppetTrajectory r, PuppetScenarioSettings s) => new()
+    {
+        ["도망"] = r.FleeTicks, ["왕복"] = r.PingPongs,
+        ["진동"] = r.MaxSwitchesInWindow > s.SwitchLimit ? 1 : 0,
+        ["군체 동기화"] = r.SimultaneousRatio >= s.SynchronizationLimit ? 1 : 0,
+        ["겹치기"] = r.MaxInterceptors > 1 ? 1 : 0,
+        ["무반응"] = r.MissedAttackWindows, ["위치 떨림"] = r.JitterFailures,
+        ["비활동"] = r.InactivityFailures, ["포위 자리 겹침"] = r.SurroundReservationConflicts
+    };
+    internal sealed class HarassCycles
+    {
+        internal int Jabs, Waiting, Limited, Ordinary, Other;
+        internal double? Completion => Jabs == 0 ? null : 100.0 * (Waiting + Limited) / Jabs;
+        internal void Add(HarassCycles c)
+        { Jabs += c.Jabs; Waiting += c.Waiting; Limited += c.Limited; Ordinary += c.Ordinary; Other += c.Other; }
+        internal string Print => $"찌르기 {Jabs}, 대기 {Waiting}, 제한 {Limited}, 일반 공격 {Ordinary}, 기타 {Other}";
+    }
+    internal static HarassCycles HarassCycle(PuppetTrajectory trajectory)
+    {
+        var counts = new HarassCycles();
+        if (trajectory.Frames.Count == 0) return counts;
+        foreach (var agent in trajectory.Frames[0].Puppets)
+        {
+            bool pending = false, withdrew = false;
+            foreach (var frame in trajectory.Frames)
+            {
+                var a = frame.Puppets.Single(p => p.Id.Equals(agent.Id));
+                var phase = frame.HarassPhases.GetValueOrDefault(agent.Id.Value);
+                bool jab = a.CurrentAction == ActionIds.Attack && phase == HarassPhase.Recover;
+                if (pending)
+                {
+                    if (a.CurrentAction == ActionIds.Harass && phase == HarassPhase.Withdraw) withdrew = true;
+                    else if (withdrew || jab || a.CurrentAction != ActionIds.Harass || phase != HarassPhase.Recover)
+                    {
+                        // Only completed cycles contribute to both numerator and denominator.
+                        counts.Jabs++;
+                        if (withdrew && phase == HarassPhase.Waiting && a.CurrentAction == ActionIds.Harass) counts.Waiting++;
+                        else if (withdrew && (phase == HarassPhase.Strike || jab)) counts.Limited++;
+                        else if (withdrew && a.CurrentAction == ActionIds.Attack && phase == null) counts.Ordinary++;
+                        else counts.Other++;
+                        pending = false; withdrew = false;
+                    }
+                }
+                if (jab) pending = true;
+            }
+        }
+        return counts;
+    }
+    internal static int AttackDwell(PuppetTrajectory trajectory, SweepSettings settings)
+    {
+        int longest = 0;
+        if (trajectory.Frames.Count == 0) return longest;
+        foreach (var agent in trajectory.Frames[0].Puppets)
+        {
+            int start = trajectory.Frames[0].Tick;
+            for (int i = 0; i < trajectory.Frames.Count; i++)
+            {
+                var f = trajectory.Frames[i]; var a = f.Puppets.Single(p => p.Id.Equals(agent.Id));
+                if (a.CurrentAction != ActionIds.Attack) { start = f.Tick + 1; continue; }
+                if (i > 0)
+                {
+                    var before = trajectory.Frames[i - 1].Puppets.Single(p => p.Id.Equals(agent.Id));
+                    if (before.CurrentAction != ActionIds.Attack || PuppetSimulation.Distance(a.Position, before.Position) > settings.MovementThreshold)
+                        start = f.Tick;
+                }
+                longest = Math.Max(longest, f.Tick - start + 1);
+            }
+        }
+        return longest;
+    }
+    internal static List<int> OrbitDepartures(PuppetTrajectory trajectory, SweepSettings settings)
+    {
+        var delays = new List<int>();
+        if (trajectory.Frames.Count == 0) return delays;
+        foreach (var agent in trajectory.Frames[0].Puppets)
+        {
+            bool entered = false; int? departed = null;
+            foreach (var frame in trajectory.Frames)
+            {
+                var a = frame.Puppets.Single(p => p.Id.Equals(agent.Id));
+                if (a.CurrentAction != ActionIds.Intercept) continue;
+                var healer = frame.Puppets.Single(p => p.Id.Value == 13).Position;
+                double dx = frame.Player.X - healer.X, dz = frame.Player.Z - healer.Z;
+                double length = dx * dx + dz * dz;
+                double fraction = length == 0 ? 0 : Math.Clamp(((a.Position.X - healer.X) * dx + (a.Position.Z - healer.Z) * dz) / length, 0, 1);
+                bool inside = PuppetSimulation.Distance(a.Position, new Vec2(healer.X + fraction * dx, healer.Z + fraction * dz)) <= settings.PassbyReturnDistance;
+                if (inside)
+                {
+                    if (departed.HasValue) { delays.Add(frame.Tick - departed.Value); departed = null; }
+                    entered = true;
+                }
+                else if (entered && !departed.HasValue) departed = frame.Tick;
+            }
+            if (departed.HasValue) delays.Add(trajectory.Frames.Last().Tick - departed.Value);
+        }
+        return delays;
+    }
     public static int Forbidden(PuppetTrajectory r, PuppetScenarioSettings s) =>
         r.FleeTicks + r.PingPongs + (r.MaxSwitchesInWindow > s.SwitchLimit ? 1 : 0)
         + (r.SimultaneousRatio >= s.SynchronizationLimit ? 1 : 0) + (r.MaxInterceptors > 1 ? 1 : 0)

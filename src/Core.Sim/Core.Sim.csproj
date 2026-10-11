@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Core.Tests" />
     <ProjectReference Include="../Core/Core.csproj" />
   </ItemGroup>
 </Project>

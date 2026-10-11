@@ -50,7 +50,7 @@ namespace BehindTheCurtain.Core
 
         private (Vec2 Goal, AgentId? Target) ResolveSurround(UtilityContext c)
         {
-            flankTarget = null; harassTarget = null; Phase = null; HarassAttack = false;
+            flankTarget = null; harassTarget = null; harassIntervalTarget = null; Phase = null; HarassAttack = false;
             if (surroundTarget.HasValue && !c.World.IsParticipating(surroundTarget.Value)) ResetSurround();
             var target = surroundTarget.HasValue && c.World.IsParticipating(surroundTarget.Value)
                 ? c.World.Get(surroundTarget.Value).Value : ApproachTarget(c);

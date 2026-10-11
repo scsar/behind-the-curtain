@@ -13,6 +13,8 @@ namespace BehindTheCurtain.Core
         private AgentId? harassTarget;
         private long harassPhaseTick;
         private long harassIntervalTick;
+        private AgentId? harassIntervalTarget;
+        private bool harassStruck;
         private Vec2 harassDirection;
         internal HarassPhase? Phase { get; private set; }
         internal bool HarassAttack { get; private set; }
@@ -29,7 +31,7 @@ namespace BehindTheCurtain.Core
         internal void ResetBasicActions()
         {
             ResetSurround();
-            flankTarget = null; harassTarget = null; Phase = null; HarassAttack = false;
+            flankTarget = null; harassTarget = null; harassIntervalTarget = null; Phase = null; HarassAttack = false;
         }
 
         private bool Front(UtilityContext c, AgentState target, out Vec2 direction)
@@ -62,7 +64,7 @@ namespace BehindTheCurtain.Core
 
         private (Vec2 Goal, AgentId? Target) ResolveFlank(UtilityContext c)
         {
-            harassTarget = null; Phase = null; HarassAttack = false;
+            harassTarget = null; harassIntervalTarget = null; Phase = null; HarassAttack = false;
             if (flankTarget.HasValue && !c.World.IsParticipating(flankTarget.Value)) flankTarget = null;
             var target = flankTarget.HasValue && c.World.IsParticipating(flankTarget.Value)
                 ? c.World.Get(flankTarget.Value).Value : ApproachTarget(c);
@@ -118,43 +120,42 @@ namespace BehindTheCurtain.Core
             if (harassTarget.HasValue && !c.World.IsParticipating(harassTarget.Value))
             { harassTarget = null; Phase = null; }
             var target = harassTarget.HasValue ? c.World.Get(harassTarget.Value).Value : HarassTarget(c);
-            if (target == null) { Phase = null; return (c.Agent.Position, null); }
+            if (target == null) { harassIntervalTarget = null; Phase = null; return (c.Agent.Position, null); }
             if (!harassTarget.HasValue)
             {
                 harassTarget = target.Id; Phase = HarassPhase.Waiting;
-                harassIntervalTick = c.Tick;
+                if (!Nullable.Equals(harassIntervalTarget, target.Id) || harassStruck)
+                    harassIntervalTick = c.Tick;
+                harassIntervalTarget = target.Id; harassStruck = false;
                 harassDirection = Direction(target.Position, c.Agent.Position, new Vec2(0, -1));
             }
             double range = c.World.GetAttackRange(c.Agent.Id, settings).Value;
             double distance = Distance(c.Agent.Position, target.Position);
+            if (Phase == HarassPhase.Withdraw && unchecked((ulong)c.Tick - (ulong)harassPhaseTick) >= (ulong)settings.HarassWithdrawMaxTicks)
+                Phase = HarassPhase.Strike;
             if (Phase == HarassPhase.Waiting && unchecked((ulong)c.Tick - (ulong)harassIntervalTick) >= (ulong)settings.HarassIntervalTicks)
                 Phase = HarassPhase.Strike;
+            bool ordinaryAttackEnabled = (settings.GetRoleWeight(c.Agent.Role, ActionIds.Attack) > 0
+                || c.Blackboard.HasIntention(c.Agent.Role + ":" + ActionIds.Attack))
+                && c.Blackboard.RoleIntention(c.Agent.Role, ActionIds.Attack) > 0;
+            if (Phase == HarassPhase.Waiting && distance <= range && ordinaryAttackEnabled)
+            {
+                harassTarget = null; harassIntervalTarget = null; Phase = null; HarassAttack = true;
+                return (c.Agent.Position, target.Id);
+            }
             if (Phase == HarassPhase.Waiting && distance < range + settings.HarassMargin)
-                Phase = HarassPhase.Withdraw;
+            { Phase = HarassPhase.Withdraw; harassPhaseTick = c.Tick; }
             if (Phase == HarassPhase.Strike && distance <= range)
             {
-                HarassAttack = true; Phase = HarassPhase.Recover; harassPhaseTick = c.Tick;
+                harassStruck = true; HarassAttack = true; Phase = HarassPhase.Recover; harassPhaseTick = c.Tick;
                 return (c.Agent.Position, target.Id);
             }
             if (Phase == HarassPhase.Recover)
             {
                 if (unchecked((ulong)c.Tick - (ulong)harassPhaseTick) <= (ulong)settings.HarassRecoverTicks)
                     return (c.Agent.Position, target.Id);
-                Phase = HarassPhase.Withdraw;
+                Phase = HarassPhase.Withdraw; harassPhaseTick = c.Tick;
                 harassDirection = Direction(target.Position, c.Agent.Position, harassDirection);
-            }
-            // Commitment to waiting/withdrawal must not suppress an enabled ordinary
-            // attack when the harass target enters range. Keep the
-            // scheduled jab and its full recovery intact; yield only outside those phases.
-            var attackTarget = distance <= range ? target : null;
-            bool ordinaryAttackEnabled = (settings.GetRoleWeight(c.Agent.Role, ActionIds.Attack) > 0
-                || c.Blackboard.HasIntention(c.Agent.Role + ":" + ActionIds.Attack))
-                && c.Blackboard.RoleIntention(c.Agent.Role, ActionIds.Attack) > 0;
-            if (ordinaryAttackEnabled && attackTarget != null
-                && (Phase == HarassPhase.Waiting || Phase == HarassPhase.Withdraw))
-            {
-                harassTarget = null; Phase = null; HarassAttack = true;
-                return (c.Agent.Position, attackTarget.Id);
             }
             double radius = Phase == HarassPhase.Strike ? range - settings.AttackArrivalMargin : range + settings.HarassMargin;
             var goal = new Vec2(target.Position.X + harassDirection.X * radius, target.Position.Z + harassDirection.Z * radius);

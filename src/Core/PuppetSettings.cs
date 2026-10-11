@@ -43,6 +43,7 @@ namespace BehindTheCurtain.Core
             TargetSwitchMargin = targetSwitchMargin; TargetMinHoldTicks = targetMinHoldTicks;
             FlankAngle = basicActions?.FlankAngle ?? double.NaN; FlankRadius = basicActions?.FlankRadius ?? double.NaN;
             HarassMargin = basicActions?.HarassMargin ?? double.NaN;
+            HarassWithdrawMaxTicks = basicActions?.HarassWithdrawMaxTicks ?? 0;
             HarassIntervalTicks = basicActions?.HarassIntervalTicks ?? 0; HarassRecoverTicks = basicActions?.HarassRecoverTicks ?? 0;
             FlankNonMeleeScale = basicActions?.FlankNonMeleeScale ?? double.NaN; HarassMeleeScale = basicActions?.HarassMeleeScale ?? double.NaN;
             ApproachNonMeleeScale = basicActions?.ApproachNonMeleeScale ?? double.NaN;
@@ -135,6 +136,7 @@ namespace BehindTheCurtain.Core
         public double HarassMargin { get; }
         public int HarassIntervalTicks { get; }
         public int HarassRecoverTicks { get; }
+        public int HarassWithdrawMaxTicks { get; }
         public double FlankNonMeleeScale { get; }
         public double HarassMeleeScale { get; }
         public double GuardRearOffset { get; }
@@ -189,7 +191,7 @@ namespace BehindTheCurtain.Core
             && Positive(CrowdPenalty) && CrowdPenalty <= 1 && Positive(TargetSwitchMargin)
             && TargetSwitchMargin >= 1 && TargetMinHoldTicks >= 0 && AiNumber.Weight(ApproachNonMeleeScale)
             && AiNumber.Weight(KeepAlignTolerance) && KeepAlignTolerance <= 180 && Positive(FlankAngle) && FlankAngle <= 180 && Positive(FlankRadius)
-            && Positive(HarassMargin) && HarassIntervalTicks > 0 && HarassRecoverTicks > 0
+            && Positive(HarassMargin) && HarassIntervalTicks > 0 && HarassRecoverTicks > 0 && HarassWithdrawMaxTicks > 0
             && AiNumber.Weight(FlankNonMeleeScale) && AiNumber.Weight(HarassMeleeScale) && AiNumber.Weight(IndividualThreatInterceptScale) && ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0
             && Positive(MidAttackRange) && Positive(RangedAttackRange)
             && AttackArrivalMargin < MidAttackRange && AttackArrivalMargin < RangedAttackRange

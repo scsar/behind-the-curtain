@@ -15,27 +15,45 @@ dotnet run --project src/Core.Sim -- --sweep PuppetSettings.reevaluationInterval
 알 수 없는 이름, 숫자가 아닌 값, Core가 거부한 설정은 해당 행에 `rejected`와 이유를 표시한다.
 
 각 조합은 approach, healer, standstill, duo/mixed/cast, duo-swap/mixed/cast를
-시드 1~3으로 실행한다. 금지 패턴과 끊김, 행동 지속은 이 15회에서 집계한다.
-passby 3회는 반응 지연 (iii)에만 사용한다. 금지 패턴 합계는 기존 계약의
+시드 1~3으로 실행한다. 금지 패턴과 끊김, 행동 지속, 견제 사이클, 공격 체류는 이 15회에서 집계한다.
+orbit 3회는 반응 지연 (iii)와 orbit gap에만 사용한다. 금지 패턴 합계는 기존 계약의
 도망 tick, ping-pong 횟수, 과도한 행동 전환·군체 동기화·복수 막아서기 계약 실패,
 무반응 tick, 위치 떨림 tick, 비활동 tick, 포위 자리 충돌 횟수를 합한다.
 서로 단위가 다른 기존 실패 지표를 합하므로 0인지 여부를 우선해서 비교한다.
+표 아래에는 합계가 0이 아닌 행의 패턴별 실패를 표시한다. 진동·군체 동기화·겹치기는
+실패한 실행 수이며, 나머지는 기존 합계와 같은 단위로 15회를 더한다.
 
 끊김은 이동 → 6~45 tick 정지 → 이동 중, 정지 전체가 Active 상태의
 approach/flank/surround/pressure 또는 harass Waiting/Withdraw였을 때만 센다.
 이동 임계값은 tick당 0.01m다. 열린 정지 구간은 세지 않는다.
 반응 지연은 대상 교대, 플레이어 정지 후 1초간 행동이 안정되는 시작 tick,
-Guard 시작 위치 선 통과 후 intercept가 해당 선분의 1m 이내에 돌아오는 사건을 잰다.
+orbit에서 intercept가 힐러(id 13)와 플레이어를 잇는 선분을 벗어났다 돌아오는 사건을 잰다.
+intercept frame만 관측하며, 선분에서 1m 이내에 한 번 들어온 뒤 1m 밖으로 나간 tick부터
+다시 1m 이내로 돌아온 tick까지를 이탈로 센다. 종료까지 복귀하지 않으면 마지막 frame까지 센다.
+(iii)는 세 실행의 모든 이탈을 합쳐 평균한다. 이탈이 없으면 평균에 0을 넣고
+`0(벗어남 없음)`으로 표시한다. `orbit gap(m)`은 같은 세 실행의
+`InterceptDistanceSum / InterceptSettledTicks`를 실행별로 구해 평균한다.
 대상 교대 지연은 대상이 달라진 비힐러 개체의 평균을 먼저 구한 뒤 시드 평균을 낸다.
 대상 교대가 없는 시드는 평균에서 제외한다. 전 시드에서 교대가 없거나,
-다른 사건의 반응을 시나리오 종료까지 관측하지 못하면 `n/a`를 표시한다.
+정지 후 안정화를 시나리오 종료까지 관측하지 못하면 `n/a`를 표시한다.
 세 사건 중 `n/a`가 있으면 전체 평균도 `n/a`이며 동률 정렬에서 마지막으로 보낸다.
 행동 지속은 첫·마지막 구간도 포함하여 15회의 모든 개체 구간을 가중 평균한다.
+
+`harass cycle`은 완결된 찌르기 중 (대기 + 제한) / 찌르기의 백분율이다(없으면 `n/a`).
+찌르기는 행동 attack, HarassPhase Recover인 frame이다. Withdraw 마지막 frame 다음 frame을
+대기(Waiting), 제한(Strike 또는 다음 찌르기), 일반 공격(attack, phase 없음), 기타로 나눈다.
+Withdraw 진입 전에 끊기거나 다른 행동으로 바뀌면 기타다. 종료 때 미완결인 사이클은
+분자와 분모 모두에서 제외한다. 표 아래에 각 행의 찌르기와 네 가지 끝의 횟수를 표시한다.
+`attack dwell(tick)`은 attack frame이 연속되고 frame 사이 이동이 MovementThreshold 이하인
+가장 긴 구간의 tick 수다. 각 실행의 모든 개체 중 최댓값을 구한 뒤 15회 평균한다.
+끊김에서 제외하는 공격 정지를 이 열로 확인한다.
 
 첫 행은 비교용 기본값이다. 후보는 실패 0 우선, 끊김 오름차순, 지연 평균 오름차순이며
 거부 행은 마지막이다. 완전 동률이면 입력 조합 순서를 유지한다.
 마지막 열은 기본값과 다른 적용값만 U7 F6 형식으로 표시한다(기본값이면 빈 문자열).
-임계값은 `SweepSettings`의 임시 측정 수치이며 Core/Unity 기본값은 변경하지 않는다.
+임계값은 `SweepSettings`의 임의로 정한 임시 측정 수치다. MovementThreshold는 0.01m,
+PassbyReturnDistance는 이름을 유지하며 orbit 복귀 거리 1.0m에 사용한다.
+`BasicActionSettings.harassWithdrawMaxTicks`도 U7과 같은 이름으로 탐색할 수 있다(기본 60 tick, 임의값).
 
 ```sh
 dotnet run --project src/Core.Sim
@@ -102,8 +120,9 @@ Metrics are measured every tick, not from the printed samples:
 - `maxIntercept`: simultaneous interceptors; `intercept`: intercept agent ticks
   divided by all puppet agent ticks (the 20% default limit excludes GuardHealer).
 - `residence`: longest continuous tick count with a human in any puppet's attack
-  range; `attackTicks`: ticks with an in-range attack and valid target;
-  `missedAttack`: ticks beyond 30 consecutive in-range ticks with no attack.
+  range; `attackTicks`: ticks with an in-range attack and valid target, or a harass
+  action in Strike/Recover/Withdraw; `missedAttack`: ticks beyond 30 consecutive
+  in-range ticks with neither response. Waiting does not qualify for the harass exception.
 
 `PuppetContractTests` applies always-forbidden checks to all four paths both with
 defaults and with a table-only custom response (`Attacker:keepDistance = 4`).
