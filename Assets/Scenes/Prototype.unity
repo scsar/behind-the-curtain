@@ -476,6 +476,16 @@ MonoBehaviour:
       Value: 1
     - Name: PuppetSettings.interceptWaypointTolerance
       Value: 0.2
+    - Name: PuppetSettings.targetDistanceScale
+      Value: 4
+    - Name: PuppetSettings.pressCap
+      Value: 2
+    - Name: PuppetSettings.crowdPenalty
+      Value: 0.3
+    - Name: PuppetSettings.targetSwitchMargin
+      Value: 1.3
+    - Name: PuppetSettings.targetMinHoldTicks
+      Value: 30
     UseDirectorCasting: 1
     DirectorGuardCount: 2
     Lineups:
