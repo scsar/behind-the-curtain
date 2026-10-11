@@ -21,6 +21,7 @@ public static class Simulation
 
     public static int Run(string[] args, TextWriter output, TextWriter error)
     {
+        if (args.Length > 0 && args[0] == "--sweep") return PuppetSweep.Run(args.Skip(1).ToArray(), output, error);
         string? puppetScenario = null;
         string stress = "none";
         string loadout = "presets";

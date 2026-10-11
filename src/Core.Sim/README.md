@@ -1,5 +1,42 @@
 # Core.Sim
 
+## 수치 탐색
+
+```sh
+dotnet run --project src/Core.Sim -- --sweep
+dotnet run --project src/Core.Sim -- --sweep PuppetSettings.reevaluationIntervalTicks=10,15,20,30 BasicActionSettings.harassIntervalTicks=45,90 BasicActionSettings.harassRecoverTicks=15,30
+```
+
+`--sweep`는 첫 인자로 지정한다. 공개 생성자의 숫자 매개변수를
+`Class.name=value,value`로 지정하면 모든 조합을 실행한다. 이름은 U7과 같으며
+`arenaHalfSize`, `ticksPerSecond`는 제외한다. 정수는 `Math.Round`로 반올림한다.
+기본값만 실행하는 빈 탐색도 지원한다. `SweepSettings.SweepMaxCombinations`는 기본 64이며
+한도를 넘거나 인자 형식이 잘못되면 실행 전 종료 코드 2를 반환한다.
+알 수 없는 이름, 숫자가 아닌 값, Core가 거부한 설정은 해당 행에 `rejected`와 이유를 표시한다.
+
+각 조합은 approach, healer, standstill, duo/mixed/cast, duo-swap/mixed/cast를
+시드 1~3으로 실행한다. 금지 패턴과 끊김, 행동 지속은 이 15회에서 집계한다.
+passby 3회는 반응 지연 (iii)에만 사용한다. 금지 패턴 합계는 기존 계약의
+도망 tick, ping-pong 횟수, 과도한 행동 전환·군체 동기화·복수 막아서기 계약 실패,
+무반응 tick, 위치 떨림 tick, 비활동 tick, 포위 자리 충돌 횟수를 합한다.
+서로 단위가 다른 기존 실패 지표를 합하므로 0인지 여부를 우선해서 비교한다.
+
+끊김은 이동 → 6~45 tick 정지 → 이동 중, 정지 전체가 Active 상태의
+approach/flank/surround/pressure 또는 harass Waiting/Withdraw였을 때만 센다.
+이동 임계값은 tick당 0.01m다. 열린 정지 구간은 세지 않는다.
+반응 지연은 대상 교대, 플레이어 정지 후 1초간 행동이 안정되는 시작 tick,
+Guard 시작 위치 선 통과 후 intercept가 해당 선분의 1m 이내에 돌아오는 사건을 잰다.
+대상 교대 지연은 대상이 달라진 비힐러 개체의 평균을 먼저 구한 뒤 시드 평균을 낸다.
+대상 교대가 없는 시드는 평균에서 제외한다. 전 시드에서 교대가 없거나,
+다른 사건의 반응을 시나리오 종료까지 관측하지 못하면 `n/a`를 표시한다.
+세 사건 중 `n/a`가 있으면 전체 평균도 `n/a`이며 동률 정렬에서 마지막으로 보낸다.
+행동 지속은 첫·마지막 구간도 포함하여 15회의 모든 개체 구간을 가중 평균한다.
+
+첫 행은 비교용 기본값이다. 후보는 실패 0 우선, 끊김 오름차순, 지연 평균 오름차순이며
+거부 행은 마지막이다. 완전 동률이면 입력 조합 순서를 유지한다.
+마지막 열은 기본값과 다른 적용값만 U7 F6 형식으로 표시한다(기본값이면 빈 문자열).
+임계값은 `SweepSettings`의 임시 측정 수치이며 Core/Unity 기본값은 변경하지 않는다.
+
 ```sh
 dotnet run --project src/Core.Sim
 dotnet run --project src/Core.Sim -- --seed 42 --encounters 6
