@@ -157,7 +157,7 @@ multiplier and the agent's fixed jitter. Existing action-only tactic multipliers
 are unchanged. Diagnostics show the effective candidate base weight; disabled
 default-zero actions have a zero eligibility consideration.
 
-New provisional Core defaults: 30-tick reevaluation, ordinal × interval / count
+New provisional Core defaults: 10-tick reevaluation (S2 탐색 + U7 Play, 2026-11-08), ordinal × interval / count
 phase offsets after the initial assignment, ±15% fixed per-agent/action jitter,
 6m/s keepDistance movement (versus 3m/s ordinary movement), 2m Guard rear offset,
 0.05m attack arrival margin and 0.02 passive intercept scale. Faster distance

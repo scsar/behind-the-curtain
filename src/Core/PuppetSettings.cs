@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 
 namespace BehindTheCurtain.Core
 {
-    /// <summary>Provisional, arbitrarily chosen distances, speeds and utility tuning for T15.</summary>
+    /// <summary>Provisional, arbitrarily chosen distances, speeds and utility tuning for T15; reevaluation interval: S2 탐색 + U7 Play, 2026-11-08.</summary>
     public sealed class PuppetSettings
     {
         public PuppetSettings(double interceptDistance = 1.5, double spreadDistance = 3,
@@ -12,7 +12,7 @@ namespace BehindTheCurtain.Core
             double interceptWeight = 1.5, double spreadWeight = 0.15, double holdWeight = 0.1,
             double attackWeight = 0.8, double interceptPositionFloor = 0.6,
             double persistenceBonus = 0.02, double threatRadius = 6, double keepMin = 5,
-            double keepMax = 8, double weightJitter = 0.15, int reevaluationIntervalTicks = 30,
+            double keepMax = 8, double weightJitter = 0.15, int reevaluationIntervalTicks = 10,
             double keepDistanceWeight = 1.2, double passiveInterceptScale = 0.02, double keepDistanceSpeed = 6,
             double attackArrivalMargin = 0.05, double guardRearOffset = 2,
             double guardHoldScale = 3,
@@ -29,7 +29,7 @@ namespace BehindTheCurtain.Core
             double interceptWeight = 1.5, double spreadWeight = 0.15, double holdWeight = 0.1,
             double attackWeight = 0.8, double interceptPositionFloor = 0.6,
             double persistenceBonus = 0.02, double threatRadius = 6, double keepMin = 5,
-            double keepMax = 8, double weightJitter = 0.15, int reevaluationIntervalTicks = 30,
+            double keepMax = 8, double weightJitter = 0.15, int reevaluationIntervalTicks = 10,
             double keepDistanceWeight = 1.2, double passiveInterceptScale = 0.02, double keepDistanceSpeed = 6,
             double attackArrivalMargin = 0.05, double guardRearOffset = 2,
             double guardHoldScale = 3,
