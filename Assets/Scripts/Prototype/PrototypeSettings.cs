@@ -33,6 +33,16 @@ namespace BehindTheCurtain.Prototype
     [Serializable]
     public sealed class PrototypeSettings
     {
+        // Arbitrarily chosen prototype damage and visual values (not final balance).
+        public double MeleeHealthDamage = 15, MeleePostureDamage = 10;
+        public double RangedHealthDamage = 10, RangedPostureDamage = 5;
+        public double AreaHealthDamage = 6, AreaPostureDamage = 8;
+        public float ReclaimRetractSeconds = 0.6f;
+        public float BrokenBodyAngle = 90f, FallenDrop = 0.35f;
+        public float ReleasedBodyAngle = 35f, LimpArmAngle = 65f, LimpLegAngle = 25f;
+        public float StaggerLeanAngle = 15f;
+        public float DamageLabelHeight = 22f;
+        public int BrokenReasonTicks = TicksPerSecond; // Requested one second.
         public TemperamentMode TemperamentMode = TemperamentMode.Random;
         // Slot order: front left, front right, rear left, rear right. x: boldness, y: persistence.
         public Vector2[] ManualTemperaments = new Vector2[4];

@@ -58,6 +58,9 @@ namespace BehindTheCurtain.Prototype
         private bool FinishEncounter(long tick)
         {
             CancelAction(null);
+            attack = null;
+            resultStartTick = -1;
+            severedViews.Clear();
             if (!expedition.EndEncounterWithIndividuals(observer.EndEncounterWithIndividuals()) || !PrepareEncounter())
             {
                 lastReason = "Encounter transition rejected";
@@ -147,13 +150,16 @@ namespace BehindTheCurtain.Prototype
 
         private void PerformPlayerAttack(PlayerAttackKind kind, string label)
         {
-            var targets = new AttackTarget[puppets.Length];
+            var targets = new List<AttackTarget>();
+            var targetIndices = new List<int>();
             var aim = controls != null ? controls.AimDirection : player.forward;
-            for (var i = 0; i < targets.Length; i++)
+            for (var i = 0; i < puppets.Length; i++)
             {
+                if (!IsParticipating(i)) continue;
                 var offset = Vector3.ProjectOnPlane(puppets[i].position - player.position, Vector3.up);
-                targets[i] = new AttackTarget(offset.magnitude, Vector3.Angle(aim, offset),
-                    expedition.EncounterWorld.Get(PuppetAgentId(i)).Value.Role);
+                targets.Add(new AttackTarget(offset.magnitude, Vector3.Angle(aim, offset),
+                    expedition.EncounterWorld.Get(PuppetAgentId(i)).Value.Role));
+                targetIndices.Add(i);
             }
             // Core's legacy resolver records anonymously. Use a scratch observer, then
             // attach identity once to the encounter observer without duplicating hit rules.
@@ -174,11 +180,55 @@ namespace BehindTheCurtain.Prototype
             if (!observer.Observe(new AttackEvent(kind == PlayerAttackKind.AreaMelee ? hits.Count : 0,
                 hitTargets[primary[0]].Role, kind == PlayerAttackKind.Ranged ? AttackRange.Ranged : AttackRange.Melee,
                 clock.Tick, PlayerAgentId, true))) return;
-            foreach (var i in hits)
+            foreach (var hit in hits)
             {
+                var i = targetIndices[hit];
+                var health = kind == PlayerAttackKind.AreaMelee ? settings.AreaHealthDamage
+                    : kind == PlayerAttackKind.Ranged ? settings.RangedHealthDamage : settings.MeleeHealthDamage;
+                var posture = kind == PlayerAttackKind.AreaMelee ? settings.AreaPostureDamage
+                    : kind == PlayerAttackKind.Ranged ? settings.RangedPostureDamage : settings.MeleePostureDamage;
+                expedition.EncounterWorld.ApplyDamage(PuppetAgentId(i), health, posture, clock.Tick);
                 puppetFlashUntil[i] = feedbackTick + settings.PuppetHitFlashTicks;
                 attackLabels.Add(new AttackLabel { Target = puppets[i], Text = label, Start = feedbackTick });
             }
+            RefreshFallenPuppets();
+            BreakFallenConnections(clock.Tick);
+            ObserveResult();
+            FinishIfAllFallen(clock.Tick);
+        }
+
+        private bool IsParticipating(int index)
+            => expedition.EncounterWorld.GetPuppetState(PuppetAgentId(index)).Value.IsParticipating;
+
+        private void RefreshFallenPuppets()
+        {
+            for (var i = 0; i < puppets.Length; i++)
+                puppets[i].GetComponent<Collider>().enabled = IsParticipating(i);
+        }
+
+        private void BreakFallenConnections(long tick)
+        {
+            if (attack == null || !attack.CounterWindow.Contains(tick)) return;
+            for (var i = 0; i < plan.ConnectionPoints.Count; i++)
+                if (!IsParticipating(i) && attack.Break(plan.ConnectionPoints[i]))
+                {
+                    severedViews.Add(plan.ConnectionPoints[i]);
+                    brokenReasonUntil = tick + settings.BrokenReasonTicks;
+                }
+        }
+
+        private long brokenReasonUntil;
+
+        private bool FinishIfAllFallen(long tick)
+        {
+            if (intermission) return false;
+            for (var i = 0; i < puppets.Length; i++)
+                if (IsParticipating(i)) return false;
+            // No further aims, channels or pending slams survive encounter completion.
+            foreach (var slam in slams) Destroy(slam.View);
+            slams.Clear();
+            FinishEncounter(tick);
+            return true;
         }
 
         private string ConnectionSummary()

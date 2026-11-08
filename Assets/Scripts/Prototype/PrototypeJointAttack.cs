@@ -227,6 +227,7 @@ namespace BehindTheCurtain.Prototype
         {
             if (!enabled)
                 return;
+            if (FinishIfAllFallen(tick)) return;
             if (resultStartTick >= 0 && tick - resultStartTick >= settings.ResultTicks)
             {
                 attack = null;
@@ -254,6 +255,9 @@ namespace BehindTheCurtain.Prototype
             if (attack != null)
                 attack.Advance(tick);
             if (!intermission && !AdvanceBrain(tick)) return;
+            RefreshFallenPuppets();
+            BreakFallenConnections(tick);
+            if (FinishIfAllFallen(tick)) return;
             AdvancePressure(tick);
             AdvanceCounterAction();
             ObserveResult();
@@ -295,7 +299,7 @@ namespace BehindTheCurtain.Prototype
             for (var i = 0; i < attack.ConnectionPoints.Count; i++)
             {
                 var point = attack.ConnectionPoints[i];
-                if (severedViews.Contains(point) || (point.AllowedMethods & method) == 0 ||
+                if (!IsParticipating(i) || severedViews.Contains(point) || (point.AllowedMethods & method) == 0 ||
                     Vector3.Distance(player.position, ConnectionPosition(i)) > settings.DisruptRange)
                     continue;
                 found = true;
@@ -341,7 +345,7 @@ namespace BehindTheCurtain.Prototype
 
         private bool IsShootCandidate(int index)
             => WindowOpen && index >= 0 && index < attack.ConnectionPoints.Count &&
-                !severedViews.Contains(attack.ConnectionPoints[index]) &&
+                IsParticipating(index) && !severedViews.Contains(attack.ConnectionPoints[index]) &&
                 (attack.ConnectionPoints[index].AllowedMethods & InterferenceMethod.Shoot) != 0;
 
         private float ShootAngle(int index)
@@ -466,7 +470,7 @@ namespace BehindTheCurtain.Prototype
                 for (var i = 0; i < attack.ConnectionPoints.Count; i++)
                 {
                     var point = attack.ConnectionPoints[i];
-                    if (severedViews.Contains(point) || (point.AllowedMethods & method) == 0)
+                    if (!IsParticipating(i) || severedViews.Contains(point) || (point.AllowedMethods & method) == 0)
                         continue;
                     var distance = Vector3.Distance(player.position, ConnectionPosition(i));
                     if (distance < closestDistance)
@@ -533,7 +537,7 @@ namespace BehindTheCurtain.Prototype
             {
                 puppets[i].position = Vector3.Lerp(previousPositions[i], restPositions[i], clock.Interpolation);
                 puppets[i].rotation = Quaternion.Slerp(previousRotations[i], restRotations[i], clock.Interpolation);
-                if (resultStartTick >= 0)
+                if (resultStartTick >= 0 && IsParticipating(i))
                 {
                     var elapsed = clock.Tick - resultStartTick;
                     if (attack.State == JointAttackState.Broken)
@@ -552,7 +556,7 @@ namespace BehindTheCurtain.Prototype
                 }
                 var severed = i < markers.Length && severedViews.Contains(plan.ConnectionPoints[i]);
                 var line = threads[i];
-                line.enabled = (telegraphing || windowOpen) && !severed;
+                line.enabled = (telegraphing || windowOpen) && !severed && IsParticipating(i);
                 if (line.enabled)
                 {
                     var bottom = i < markers.Length ? ConnectionPosition(i)
@@ -567,7 +571,7 @@ namespace BehindTheCurtain.Prototype
                 if (i < markers.Length)
                 {
                     markers[i].position = ConnectionPosition(i);
-                    markers[i].gameObject.SetActive(windowOpen && !severed);
+                    markers[i].gameObject.SetActive(windowOpen && !severed && IsParticipating(i));
                 }
             }
         }
@@ -580,9 +584,10 @@ namespace BehindTheCurtain.Prototype
                 debugOverlay = !debugOverlay;
             Physics.SyncTransforms();
             UpdateCounter();
+            UpdatePlayerAttacks();
+            UpdatePresentation();
             UpdateMarionettes();
             UpdateBrainLines();
-            UpdatePlayerAttacks();
             if (aimLine == null) return;
             var previewIndex = SelectShootTarget();
             shootPreview.gameObject.SetActive(previewIndex >= 0);
@@ -654,7 +659,7 @@ namespace BehindTheCurtain.Prototype
             GUI.Label(new Rect(12f, 182f + (debugOverlay ? 26f : 0f), 530f, 210f),
                 $"Stage: {(attack == null ? "Waiting" : attack.State.ToString())}\n"
                 + $"Window ticks: {remaining} | Connections: {broken}/{required}\n"
-                + $"Last result: {lastReason}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
+                + $"Last result: {(clock.Tick < brokenReasonUntil ? "부서짐으로 끊김" : lastReason)}\n1: Cut ({settings.CutRange:g}m)   2: Shoot   3: Disrupt ({settings.DisruptRange:g}m)\n"
                 + $"Shoot cooldown: {System.Math.Max(0, shootReadyTick - clock.Tick) / (float)PrototypeSettings.TicksPerSecond:F1}s | 이번 사이클 피격: {cycleHitCount}\n"
                 + (clock.Tick < rangeMessageUntil ? rangeMessage : "")
                 + "\n" + ConnectionSummary());

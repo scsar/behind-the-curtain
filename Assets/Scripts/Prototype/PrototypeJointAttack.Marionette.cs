@@ -10,6 +10,8 @@ namespace BehindTheCurtain.Prototype
         {
             public Transform Root, Body, Torso, Head, RightArm, LeftArm, RightLeg, LeftLeg, Hand, LeftHand;
             public LineRenderer[] Strings;
+            public long FallenTick = -1;
+            public Vector3[] FallenStringBottom, FallenStringTop;
             public long AttackStart = -1, ImpactTick = -1;
         }
         private MarionetteView[] marionettes;
@@ -93,6 +95,43 @@ namespace BehindTheCurtain.Prototype
             v.Root.gameObject.SetActive(showMarionettes);
         }
 
+        private void UpdateFallenMarionette(MarionetteView v, PuppetStatus status)
+        {
+            if (v.FallenTick < 0)
+            {
+                v.FallenTick = clock.Tick;
+                v.FallenStringBottom = new Vector3[v.Strings.Length];
+                v.FallenStringTop = new Vector3[v.Strings.Length];
+                for (var j = 0; j < v.Strings.Length; j++)
+                {
+                    v.FallenStringBottom[j] = v.Strings[j].GetPosition(0);
+                    v.FallenStringTop[j] = v.Strings[j].GetPosition(2);
+                }
+                v.Root.localPosition = Vector3.down * settings.FallenDrop;
+                v.Root.localRotation = Quaternion.Euler(0f, 0f,
+                    status == PuppetStatus.Broken ? settings.BrokenBodyAngle : 0f);
+                v.Body.localRotation = Quaternion.Euler(status == PuppetStatus.Broken ? 0f : settings.ReleasedBodyAngle, 0f, 0f);
+                v.Head.localRotation = Quaternion.identity;
+                v.RightArm.localRotation = Quaternion.Euler(0f, 0f, settings.LimpArmAngle);
+                v.LeftArm.localRotation = Quaternion.Euler(0f, 0f, -settings.LimpArmAngle);
+                v.RightLeg.localRotation = Quaternion.Euler(settings.LimpLegAngle, 0f, 0f);
+                v.LeftLeg.localRotation = Quaternion.Euler(-settings.LimpLegAngle, 0f, 0f);
+            }
+            var duration = Mathf.Max(1f, settings.ReclaimRetractSeconds * PrototypeSettings.TicksPerSecond);
+            var progress = Mathf.Clamp01((float)(clock.Tick + clock.Interpolation - v.FallenTick) / duration);
+            for (var j = 0; j < v.Strings.Length; j++)
+            {
+                var line = v.Strings[j];
+                line.enabled = status == PuppetStatus.Broken && progress < 1f;
+                if (!line.enabled) continue;
+                var top = v.FallenStringTop[j];
+                var bottom = Vector3.Lerp(v.FallenStringBottom[j], top, progress);
+                line.SetPosition(0, bottom);
+                line.SetPosition(1, (bottom + top) / 2f);
+                line.SetPosition(2, top);
+            }
+        }
+
         private void UpdateMarionettes()
         {
             if (marionettes == null || brain == null) return;
@@ -106,6 +145,12 @@ namespace BehindTheCurtain.Prototype
             {
                 var v = marionettes[i];
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
+                var state = expedition.EncounterWorld.GetPuppetState(agent.Id).Value;
+                if (!state.IsParticipating)
+                {
+                    UpdateFallenMarionette(v, state.Status);
+                    continue;
+                }
                 var decision = brain.GetDecision(agent.Id);
                 HarassPhase? phase = decision.Success ? decision.Value.HarassPhase : null;
                 var movement = restPositions[i] - previousPositions[i];
@@ -115,6 +160,8 @@ namespace BehindTheCurtain.Prototype
                 var time = Time.time;
                 var gait = Mathf.Sin(time * settings.WalkFrequency + i * settings.MarionettePhaseOffset) * settings.WalkLegAngle * amount;
                 var body = new Vector3(local.normalized.z * settings.MoveLeanAngle * amount, 0f, -local.normalized.x * settings.MoveLeanAngle * amount);
+                if (state.Posture < expedition.EncounterWorld.StateSettings.PostureStaggerThreshold)
+                    body.x += settings.StaggerLeanAngle;
                 var offset = Vector3.zero;
                 if (speed == 0f) offset.y = Mathf.Sin(time * settings.IdleBobFrequency + i * settings.MarionettePhaseOffset) * settings.IdleBobHeight;
                 var right = Vector3.zero;

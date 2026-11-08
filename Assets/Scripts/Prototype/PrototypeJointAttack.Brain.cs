@@ -58,6 +58,11 @@ namespace BehindTheCurtain.Prototype
                 if (equipmentView == null) equipmentView = puppets[i].gameObject.AddComponent<PrototypeEquipmentView>();
                 equipmentView.SetEquipment(loadout.Value.EquipmentIds);
                 marionettes[i].AttackStart = -1;
+                marionettes[i].FallenTick = -1;
+                marionettes[i].Root.localRotation = Quaternion.identity;
+                marionettes[i].Root.localPosition = Vector3.zero;
+                foreach (var line in marionettes[i].Strings) line.enabled = true;
+                puppets[i].GetComponent<Collider>().enabled = true;
                 MountMarionetteEquipment(i);
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];
@@ -109,7 +114,7 @@ namespace BehindTheCurtain.Prototype
                 previousRotations[i] = restRotations[i];
                 restPositions[i] = new Vector3((float)agent.Position.X, restPositions[i].y, (float)agent.Position.Z);
                 restRotations[i] = Quaternion.LookRotation(new Vector3((float)agent.Direction.X, 0f, (float)agent.Direction.Z));
-                if (agent.CurrentAction == ActionIds.Attack
+                if (IsParticipating(i) && agent.CurrentAction == ActionIds.Attack
                     && tick >= attackReadyTicks[i] && agent.Target.HasValue)
                 {
                     var target = world.Get(agent.Target.Value);
@@ -148,7 +153,7 @@ namespace BehindTheCurtain.Prototype
         {
             if (!debugOverlay || brain == null || Camera.main == null) return;
             GUI.Box(new Rect(8f, 0f, Screen.width - 16f, 26f),
-                $"결 {settings.TemperamentMode} / F3 {(temperamentsEnabled ? "켜짐" : "꺼짐")} | 판단 {brainTuning.ReevaluationIntervalTicks} ticks | 이동 {brainTuning.MoveSpeed:0.####} | 견제 {brainTuning.HarassIntervalTicks} / 회복 {brainTuning.HarassRecoverTicks} ticks | 측면 반경 {brainTuning.FlankRadius:0.####} | 기본값과 다른 항목 {PrototypePuppetTuning.Differences(appliedPuppetTuning).Length}");
+                $"결 {settings.TemperamentMode} | 조율 예산 {brain.CurrentTuneBudgetPerSecond:F2} / F3 {(temperamentsEnabled ? "켜짐" : "꺼짐")} | 판단 {brainTuning.ReevaluationIntervalTicks} ticks | 이동 {brainTuning.MoveSpeed:0.####} | 견제 {brainTuning.HarassIntervalTicks} / 회복 {brainTuning.HarassRecoverTicks} ticks | 측면 반경 {brainTuning.FlankRadius:0.####} | 기본값과 다른 항목 {PrototypePuppetTuning.Differences(appliedPuppetTuning).Length}");
             for (var i = 0; i < puppets.Length; i++)
             {
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
@@ -177,6 +182,7 @@ namespace BehindTheCurtain.Prototype
                     for (var rank = 0; rank < System.Math.Min(3, scores.Count); rank++)
                         text += $"\n{scores[rank].ActionId}: {scores[rank].Score:F3}";
                 }
+                text += $"\n체력 {state.Health:0.##} / 자세 {state.Posture:0.##} / {state.Status}";
                 var top = puppets[i].position.y;
                 foreach (var renderer in puppets[i].GetComponentsInChildren<Renderer>())
                     if (renderer.enabled && renderer.gameObject.activeInHierarchy && !(renderer is LineRenderer)) top = Mathf.Max(top, renderer.bounds.max.y);
@@ -185,8 +191,8 @@ namespace BehindTheCurtain.Prototype
                 var screen = Camera.main.WorldToScreenPoint(anchor);
                 if (screen.z > 0f)
                     GUI.Box(new Rect(screen.x - settings.BrainLabelWidth / 2f,
-                        Mathf.Max(0f, Screen.height - screen.y - settings.BrainLabelPanelHeight - settings.TemperamentLabelHeight),
-                        settings.BrainLabelWidth, settings.BrainLabelPanelHeight + settings.TemperamentLabelHeight), text);
+                        Mathf.Max(0f, Screen.height - screen.y - settings.BrainLabelPanelHeight - settings.TemperamentLabelHeight - settings.DamageLabelHeight),
+                        settings.BrainLabelWidth, settings.BrainLabelPanelHeight + settings.TemperamentLabelHeight + settings.DamageLabelHeight), text);
             }
         }
     }
