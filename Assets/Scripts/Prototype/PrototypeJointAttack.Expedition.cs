@@ -201,7 +201,7 @@ namespace BehindTheCurtain.Prototype
             GUI.BeginGroup(new Rect(0f, debugOverlay ? 26f : 0f, Screen.width, Screen.height));
             GUI.Box(new Rect(8f, 8f, 540f, 166f), "");
             GUI.Label(new Rect(12f, 12f, 530f, 24f),
-                $"교전 {encounterNumber} | 사이클 {completedCycles}/{settings.EncounterCycles} | F1: 개발 오버레이");
+                $"교전 {encounterNumber} | 사이클 {completedCycles}/{settings.EncounterCycles} | F2: Box/Doll | F1: 개발 오버레이");
             GUI.Label(new Rect(552f, 38f, 440f, 24f), "F5: 수치 다시 적용 | F6: 수치 기록");
             if (debugOverlay)
             {

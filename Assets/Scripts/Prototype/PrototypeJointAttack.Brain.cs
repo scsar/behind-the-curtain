@@ -57,6 +57,8 @@ namespace BehindTheCurtain.Prototype
                 var equipmentView = puppets[i].GetComponent<PrototypeEquipmentView>();
                 if (equipmentView == null) equipmentView = puppets[i].gameObject.AddComponent<PrototypeEquipmentView>();
                 equipmentView.SetEquipment(loadout.Value.EquipmentIds);
+                marionettes[i].AttackStart = -1;
+                MountMarionetteEquipment(i);
                 puppets[i].position = restPositions[i];
                 puppets[i].rotation = restRotations[i];
             }
@@ -113,6 +115,8 @@ namespace BehindTheCurtain.Prototype
                     if (target.Success)
                     {
                         CreateSlam(tick, target.Value.Position);
+                        marionettes[i].AttackStart = tick;
+                        marionettes[i].ImpactTick = tick + settings.SlamWarningTicks;
                         attackReadyTicks[i] = tick + settings.AttackCooldownTicks;
                     }
                 }
@@ -149,6 +153,8 @@ namespace BehindTheCurtain.Prototype
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
                 var decision = brain.GetDecision(agent.Id);
                 var text = $"{agent.Id.Value}: {agent.CurrentAction ?? "pending"} | target {agent.Target?.Value.ToString() ?? "-"}";
+                if (decision.Success && decision.Value.HarassPhase.HasValue)
+                    text = text.Replace(agent.CurrentAction ?? "pending", (agent.CurrentAction ?? "pending") + "/" + decision.Value.HarassPhase.Value);
                 var contract = RoleContract.ForRole(agent.Role);
                 var kind = contract.Classify(agent.CurrentAction);
                 var classification = kind == ContractActionKind.Primary ? "우선"
@@ -170,7 +176,7 @@ namespace BehindTheCurtain.Prototype
                 }
                 var top = puppets[i].position.y;
                 foreach (var renderer in puppets[i].GetComponentsInChildren<Renderer>())
-                    if (renderer.enabled && !(renderer is LineRenderer)) top = Mathf.Max(top, renderer.bounds.max.y);
+                    if (renderer.enabled && renderer.gameObject.activeInHierarchy && !(renderer is LineRenderer)) top = Mathf.Max(top, renderer.bounds.max.y);
                 var anchor = puppets[i].position;
                 anchor.y = top + settings.BrainLabelMargin;
                 var screen = Camera.main.WorldToScreenPoint(anchor);

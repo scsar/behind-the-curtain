@@ -45,6 +45,28 @@ namespace BehindTheCurtain.Prototype
             }
         }
 
+        public bool HasShield => models.Exists(model => model.name == "armor.shield" || model.name == "armor.heavyShield");
+
+        public void Mount(Transform hand, Transform leftArm, Transform torso, PrototypeSettings settings, bool marionette)
+        {
+            foreach (var model in models)
+            {
+                var id = model.name;
+                model.transform.SetParent(marionette
+                    ? (id.StartsWith("weapon.") ? hand : id.StartsWith("armor.") ? leftArm : torso)
+                    : transform, false);
+                model.transform.localPosition = marionette
+                    ? (id.StartsWith("weapon.") ? settings.WeaponHandOffset : id.StartsWith("armor.") ? settings.ArmorArmOffset : settings.ToolBackOffset)
+                    : (id.StartsWith("weapon.") ? new Vector3(0.65f, -0.15f, 0.3f)
+                        : id.StartsWith("armor.") ? new Vector3(-0.6f, 0f, 0.4f) : new Vector3(0.5f, 0.1f, -0.6f));
+                model.transform.localRotation = marionette
+                    ? Quaternion.Euler(id.StartsWith("weapon.") ? settings.WeaponMountEuler
+                        : id.StartsWith("armor.") ? settings.ArmorMountEuler : Vector3.zero)
+                    : Quaternion.identity;
+                model.transform.localScale = Vector3.one * 0.65f;
+            }
+        }
+
         public static void CreateGallery(Transform parent)
         {
             var gallery = new GameObject("Equipment Gallery (visual samples, not equipped)");

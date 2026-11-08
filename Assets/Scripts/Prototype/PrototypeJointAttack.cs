@@ -123,6 +123,7 @@ namespace BehindTheCurtain.Prototype
                 settings.DisruptCircleSegments, true);
             InitializePressure();
             InitializePlayerAttacks();
+            InitializeMarionettes();
             if (!InitializeBrain()) return;
             nextAttackTick = clock.Tick + settings.AttackWaitTicks;
         }
@@ -579,6 +580,7 @@ namespace BehindTheCurtain.Prototype
                 debugOverlay = !debugOverlay;
             Physics.SyncTransforms();
             UpdateCounter();
+            UpdateMarionettes();
             UpdateBrainLines();
             UpdatePlayerAttacks();
             if (aimLine == null) return;

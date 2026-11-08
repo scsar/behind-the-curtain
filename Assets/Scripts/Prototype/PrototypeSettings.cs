@@ -32,6 +32,44 @@ namespace BehindTheCurtain.Prototype
     public sealed class PrototypeSettings
     {
         public System.Collections.Generic.List<PuppetTuningEntry> PuppetTuning = new System.Collections.Generic.List<PuppetTuningEntry>();
+        // Arbitrarily chosen presentation values only; not combat geometry or timing.
+        public Vector3 MarionetteTorsoSize = new Vector3(0.9f, 0.55f, 0.9f);
+        public float MarionetteTorsoHeight = 0.65f;
+        public float MarionetteHeadDiameter = 0.4f;
+        public Vector3 MarionetteFaceSize = new Vector3(0.3f, 0.09f, 0.05f);
+        public Color MarionetteDarkColor = new Color(0.12f, 0.1f, 0.14f);
+        public float MarionetteArmLength = 0.55f;
+        public float MarionetteLegLength = 0.38f;
+        public float MarionetteLimbWidth = 0.12f;
+        public float MarionetteShoulderX = 0.48f;
+        public float MarionetteHipX = 0.22f;
+        public float StringHeight = 1.5f;
+        public float MarionetteStringWidth = 0.008f;
+        public float PoseBlendSeconds = 0.12f;
+        public float IdleBobHeight = 0.03f;
+        public float IdleBobFrequency = 1.5f;
+        public float MarionettePhaseOffset = 1.7f;
+        public float WalkFrequency = 9f;
+        public float WalkReferenceSpeed = 2f;
+        public float WalkLegAngle = 28f;
+        public float MoveLeanAngle = 15f;
+        public float WaitingDrop = 0.08f;
+        public float WaitingLegAngle = 25f;
+        public float AimArmAngle = -90f;
+        public float LungeDistance = 0.4f;
+        public float RecoverLeanAngle = 25f;
+        public float RecoverArmAngle = 15f;
+        public float WithdrawLeanAngle = -18f;
+        public float InterceptLegAngle = 18f;
+        public float InterceptArmAngle = 70f;
+        public float AttackRaisedAngle = -170f;
+        public float AttackSwingAngle = -55f;
+        public int SwingTicks = 6;
+        public Vector3 WeaponMountEuler = new Vector3(180f, 0f, 0f);
+        public Vector3 ArmorMountEuler = new Vector3(90f, 0f, 0f);
+        public Vector3 WeaponHandOffset = Vector3.zero;
+        public Vector3 ArmorArmOffset = new Vector3(-0.1f, -0.3f, 0.2f);
+        public Vector3 ToolBackOffset = new Vector3(0f, 0f, -0.5f);
         public const int TicksPerSecond = 30;
         public bool UseDirectorCasting = true;
         // Provisional, arbitrarily chosen lineup and casting/range/presentation tuning.

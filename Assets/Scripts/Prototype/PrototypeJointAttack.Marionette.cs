@@ -1,0 +1,178 @@
+using BehindTheCurtain.Core;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace BehindTheCurtain.Prototype
+{
+    public sealed partial class PrototypeJointAttack
+    {
+        private sealed class MarionetteView
+        {
+            public Transform Root, Body, Torso, Head, RightArm, LeftArm, RightLeg, LeftLeg, Hand, LeftHand;
+            public LineRenderer[] Strings;
+            public long AttackStart = -1, ImpactTick = -1;
+        }
+        private MarionetteView[] marionettes;
+        private bool showMarionettes = true;
+
+        private Transform VisualPivot(Transform parent, string name, Vector3 position)
+        {
+            var pivot = new GameObject(name).transform;
+            pivot.SetParent(parent, false);
+            pivot.localPosition = position;
+            return pivot;
+        }
+
+        private Transform VisualPart(Transform parent, string name, PrimitiveType type, Vector3 position,
+            Vector3 scale, Material material)
+        {
+            var part = GameObject.CreatePrimitive(type);
+            part.name = name;
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = position;
+            part.transform.localScale = scale;
+            var collider = part.GetComponent<Collider>();
+            collider.enabled = false;
+            Destroy(collider);
+            part.GetComponent<Renderer>().sharedMaterial = material;
+            return part.transform;
+        }
+
+        private void InitializeMarionettes()
+        {
+            marionettes = new MarionetteView[puppets.Length];
+            var dark = CreateUnlitMaterial(settings.MarionetteDarkColor);
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                var v = new MarionetteView();
+                marionettes[i] = v;
+                // Root scale already supplies PuppetSize. Its origin is half a size above the floor.
+                v.Root = VisualPivot(puppets[i], "Marionette", Vector3.zero);
+                v.Body = VisualPivot(v.Root, "Body pivot", Vector3.zero);
+                var height = settings.MarionetteTorsoHeight - 0.5f;
+                v.Torso = VisualPart(v.Body, "Torso", PrimitiveType.Cube, Vector3.up * height,
+                    settings.MarionetteTorsoSize, puppetMaterials[i]);
+                var headHeight = height + settings.MarionetteTorsoSize.y / 2f + settings.MarionetteHeadDiameter / 2f;
+                v.Head = VisualPart(v.Body, "Head", PrimitiveType.Sphere, Vector3.up * headHeight,
+                    Vector3.one * settings.MarionetteHeadDiameter, puppetMaterials[i]);
+                VisualPart(v.Body, "Blindfold", PrimitiveType.Cube,
+                    new Vector3(0f, headHeight, settings.MarionetteHeadDiameter / 2f), settings.MarionetteFaceSize, dark);
+                v.RightArm = VisualPivot(v.Body, "Right shoulder", new Vector3(settings.MarionetteShoulderX, height + settings.MarionetteTorsoSize.y / 2f, 0f));
+                v.LeftArm = VisualPivot(v.Body, "Left shoulder", new Vector3(-settings.MarionetteShoulderX, v.RightArm.localPosition.y, 0f));
+                v.RightLeg = VisualPivot(v.Body, "Right hip", new Vector3(settings.MarionetteHipX, height - settings.MarionetteTorsoSize.y / 2f, 0f));
+                v.LeftLeg = VisualPivot(v.Body, "Left hip", new Vector3(-settings.MarionetteHipX, v.RightLeg.localPosition.y, 0f));
+                foreach (var limb in new[] { v.RightArm, v.LeftArm, v.RightLeg, v.LeftLeg })
+                {
+                    var length = limb == v.RightArm || limb == v.LeftArm ? settings.MarionetteArmLength : settings.MarionetteLegLength;
+                    VisualPart(limb, "Limb", PrimitiveType.Cylinder, Vector3.down * length / 2f,
+                        new Vector3(settings.MarionetteLimbWidth, length / 2f, settings.MarionetteLimbWidth), puppetMaterials[i]);
+                }
+                v.Hand = VisualPivot(v.RightArm, "Right hand", Vector3.down * settings.MarionetteArmLength);
+                v.LeftHand = VisualPivot(v.LeftArm, "Left hand", Vector3.down * settings.MarionetteArmLength);
+                v.Strings = new LineRenderer[3];
+                for (var j = 0; j < 3; j++)
+                {
+                    var line = VisualPivot(v.Root, "Suspension string", Vector3.zero).gameObject.AddComponent<LineRenderer>();
+                    line.sharedMaterial = dark;
+                    line.positionCount = 3;
+                    line.useWorldSpace = true;
+                    line.widthMultiplier = settings.MarionetteStringWidth * settings.PuppetSize;
+                    v.Strings[j] = line;
+                }
+            }
+        }
+
+        private void MountMarionetteEquipment(int i)
+        {
+            var v = marionettes[i];
+            // Torso geometry is scaled: use a unit-scale socket on the visual root for equipment.
+            var back = v.Body.Find("Back socket") ?? VisualPivot(v.Body, "Back socket", v.Torso.localPosition);
+            puppets[i].GetComponent<PrototypeEquipmentView>().Mount(v.Hand, v.LeftArm, back, settings, showMarionettes);
+            puppets[i].GetComponent<MeshRenderer>().enabled = !showMarionettes;
+            v.Root.gameObject.SetActive(showMarionettes);
+        }
+
+        private void UpdateMarionettes()
+        {
+            if (marionettes == null || brain == null) return;
+            if (Application.isFocused && Keyboard.current != null && Keyboard.current.f2Key.wasPressedThisFrame)
+            {
+                showMarionettes = !showMarionettes;
+                for (var i = 0; i < puppets.Length; i++) MountMarionetteEquipment(i);
+            }
+            var blend = settings.PoseBlendSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Time.deltaTime / settings.PoseBlendSeconds);
+            for (var i = 0; i < puppets.Length; i++)
+            {
+                var v = marionettes[i];
+                var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
+                var decision = brain.GetDecision(agent.Id);
+                HarassPhase? phase = decision.Success ? decision.Value.HarassPhase : null;
+                var movement = restPositions[i] - previousPositions[i];
+                var local = Quaternion.Inverse(restRotations[i]) * movement;
+                var speed = movement.magnitude * PrototypeSettings.TicksPerSecond;
+                var amount = Mathf.Clamp01(speed / Mathf.Max(settings.WalkReferenceSpeed, Mathf.Epsilon));
+                var time = Time.time;
+                var gait = Mathf.Sin(time * settings.WalkFrequency + i * settings.MarionettePhaseOffset) * settings.WalkLegAngle * amount;
+                var body = new Vector3(local.normalized.z * settings.MoveLeanAngle * amount, 0f, -local.normalized.x * settings.MoveLeanAngle * amount);
+                var offset = Vector3.zero;
+                if (speed == 0f) offset.y = Mathf.Sin(time * settings.IdleBobFrequency + i * settings.MarionettePhaseOffset) * settings.IdleBobHeight;
+                var right = Vector3.zero;
+                var left = Vector3.zero;
+                var rightLeg = new Vector3(gait, 0f, 0f);
+                var leftLeg = new Vector3(-gait, 0f, 0f);
+                if (phase == HarassPhase.Waiting)
+                {
+                    offset.y -= settings.WaitingDrop;
+                    right.x = settings.AimArmAngle;
+                    rightLeg.x += settings.WaitingLegAngle;
+                    leftLeg.x += settings.WaitingLegAngle;
+                }
+                else if (phase == HarassPhase.Strike)
+                {
+                    offset.z += settings.LungeDistance;
+                    right.x = settings.AimArmAngle;
+                }
+                else if (phase == HarassPhase.Recover)
+                {
+                    body.x += settings.RecoverLeanAngle;
+                    right.x = settings.RecoverArmAngle;
+                }
+                else if (phase == HarassPhase.Withdraw) body.x += settings.WithdrawLeanAngle;
+                else if (agent.CurrentAction == ActionIds.Intercept)
+                {
+                    if (puppets[i].GetComponent<PrototypeEquipmentView>().HasShield) left.x = settings.AimArmAngle;
+                    else { right.z = settings.InterceptArmAngle; left.z = -settings.InterceptArmAngle; }
+                    rightLeg.z = settings.InterceptLegAngle;
+                    leftLeg.z = -settings.InterceptLegAngle;
+                }
+                else if (agent.CurrentAction == ActionIds.Attack) right.x = settings.AimArmAngle;
+                // A recorded slam owns the weapon until its swing completes, even if Core selects another action.
+                var slamActive = v.AttackStart >= 0 && clock.Tick < v.ImpactTick + Mathf.Max(1, settings.SwingTicks);
+                if (slamActive)
+                {
+                    var tick = clock.Tick + clock.Interpolation;
+                    right.x = clock.Tick < v.ImpactTick
+                        ? Mathf.Lerp(settings.AimArmAngle, settings.AttackRaisedAngle,
+                            Mathf.Clamp01((float)(tick - v.AttackStart) / Mathf.Max(1, settings.SlamWarningTicks)))
+                        : Mathf.Lerp(settings.AttackRaisedAngle, settings.AttackSwingAngle,
+                            Mathf.Clamp01((float)(tick - v.ImpactTick) / Mathf.Max(1, settings.SwingTicks)));
+                }
+                v.Root.localPosition = Vector3.Lerp(v.Root.localPosition, offset, blend);
+                v.Body.localRotation = Quaternion.Slerp(v.Body.localRotation, Quaternion.Euler(body), blend);
+                v.RightArm.localRotation = Quaternion.Slerp(v.RightArm.localRotation, Quaternion.Euler(right), slamActive ? 1f : blend);
+                v.LeftArm.localRotation = Quaternion.Slerp(v.LeftArm.localRotation, Quaternion.Euler(left), blend);
+                v.RightLeg.localRotation = Quaternion.Slerp(v.RightLeg.localRotation, Quaternion.Euler(rightLeg), blend);
+                v.LeftLeg.localRotation = Quaternion.Slerp(v.LeftLeg.localRotation, Quaternion.Euler(leftLeg), blend);
+                var sources = new[] { v.Head, v.Hand, v.LeftHand };
+                for (var j = 0; j < sources.Length; j++)
+                {
+                    var bottom = sources[j].position;
+                    var top = bottom + Vector3.up * settings.StringHeight * settings.PuppetSize;
+                    v.Strings[j].SetPosition(0, bottom);
+                    v.Strings[j].SetPosition(1, (bottom + top) / 2f);
+                    v.Strings[j].SetPosition(2, top);
+                }
+            }
+        }
+    }
+}
