@@ -25,6 +25,7 @@ public static class Simulation
         string? puppetScenario = null;
         string stress = "none";
         string loadout = "presets";
+        string temperament = "none";
         bool cast = false;
         var seed = DefaultSeed;
         var encounters = DefaultEncounters;
@@ -42,12 +43,17 @@ public static class Simulation
                 cast = true; i--; continue;
             }
             if (option is not ("--seed" or "--encounters" or "--decay" or "--threshold"
-                or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies" or "--puppets" or "--stress" or "--loadout"))
+                or "--area-threshold" or "--healer-threshold" or "--ranged-threshold" or "--strategies" or "--puppets" or "--stress" or "--loadout" or "--temperament"))
                 return ArgumentError(error, $"Unknown argument: {option}");
             if (!seen.Add(option)) return ArgumentError(error, $"Duplicate argument: {option}");
             if (i + 1 == args.Length) return ArgumentError(error, $"Missing value for {option}");
             var input = args[i + 1];
-            if (option == "--loadout")
+            if (option == "--temperament")
+            {
+                if (!TemperamentPresets.Names.Contains(input)) return ArgumentError(error, "Expected none|bold|cautious|persistent|whimsical|mixed");
+                temperament = input;
+            }
+            else if (option == "--loadout")
             {
                 if (input is not ("presets" or "mixed" or "noprotect")) return ArgumentError(error, "Expected presets|mixed|noprotect");
                 loadout = input;
@@ -102,11 +108,12 @@ public static class Simulation
         }
 
         if (cast && puppetScenario == null) return ArgumentError(error, "--cast requires --puppets");
+        if (seen.Contains("--temperament") && puppetScenario == null) return ArgumentError(error, "--temperament requires --puppets");
         if (seen.Contains("--loadout") && puppetScenario == null) return ArgumentError(error, "--loadout requires --puppets");
         if (seen.Contains("--stress") && puppetScenario == null) return ArgumentError(error, "--stress requires --puppets");
         if (puppetScenario != null)
         {
-            PuppetSimulation.Print(PuppetSimulation.Run(puppetScenario, unchecked((ulong)seed), null, null, null, stress, loadout: loadout, cast: cast), output);
+            PuppetSimulation.Print(PuppetSimulation.Run(puppetScenario, temperament, unchecked((ulong)seed), stress: stress, loadout: loadout, cast: cast), output);
             return 0;
         }
         var random = new Random(seed);
@@ -192,7 +199,7 @@ public static class Simulation
     private static int ArgumentError(TextWriter error, string reason)
     {
         error.WriteLine(reason);
-        error.WriteLine("Puppets: Core.Sim --puppets <approach|circle|retreat|healer|standstill|orbit|passby|duo|duo-swap> [--loadout <presets|mixed>] [--stress <none|tension|mixed>] [--seed <int>]");
+        error.WriteLine("Puppets: Core.Sim --puppets <approach|circle|retreat|healer|standstill|orbit|passby|duo|duo-swap> [--loadout <presets|mixed>] [--stress <none|tension|mixed>] [--seed <int>] [--temperament <none|bold|cautious|persistent|whimsical|mixed>]");
         error.WriteLine("Usage: Core.Sim [--seed <int>] [--encounters <positive int>] [--decay <0..1 exclusive>] [--threshold <0..1>] [--area-threshold <0..1>] [--healer-threshold <0..1>] [--ranged-threshold <0..1>] [--strategies <AreaFirst,HealerFirst,...>]");
         return 2;
     }

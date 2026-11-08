@@ -122,18 +122,50 @@ namespace BehindTheCurtain.Core
             double interceptWaypointTolerance)
             : this(basicActions, interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, 4, 2, 0.3, 1.3, 30) { }
 
+        /// <summary>Provisional, arbitrarily chosen temperament tuning.</summary>
+        public TemperamentSettings TemperamentTuning { get; private set; } = new TemperamentSettings();
+        public PuppetSettings WithTemperamentTuning(TemperamentSettings tuning)
+        {
+            var copy = (PuppetSettings)MemberwiseClone();
+            copy.TemperamentTuning = tuning;
+            return copy;
+        }
+        internal double WhimPressureExponent { get; private set; }
+        internal double PressureFactor(int otherPressure) => WhimPressureExponent == 0 ? 1
+            : System.Math.Pow(1.0 / (1 + otherPressure), WhimPressureExponent);
+
+        internal PuppetSettings ApplyTemperament(Temperament temperament)
+        {
+            // Preserve the exact original settings object for every zero/default temperament.
+            if (temperament.IsZero) return this;
+            var copy = (PuppetSettings)MemberwiseClone();
+            double b = temperament[TemperamentAxisIds.Boldness], p = temperament[TemperamentAxisIds.Persistence];
+            double distance = TemperamentTuning.TemperamentDistanceScale * b;
+            copy.InterceptDistance *= 1 + distance;
+            copy.InterceptStandOff *= 1 - distance;
+            // BasicActionSettings values are already flattened into this immutable snapshot.
+            copy.HarassMargin *= 1 - distance;
+            copy.KeepMin *= 1 - distance;
+            copy.KeepMax *= 1 - distance;
+            double hold = 1 + TemperamentTuning.TemperamentPersistenceScale * p;
+            copy.TargetSwitchMargin = 1 + (TargetSwitchMargin - 1) * hold;
+            copy.TargetMinHoldTicks = (int)System.Math.Round(TargetMinHoldTicks * hold);
+            copy.WhimPressureExponent = p < 0 ? TemperamentTuning.WhimPressureWeight * -p : 0;
+            return copy;
+        }
+
         // Provisional, arbitrarily chosen target selection tuning (metres and ticks).
         public double TargetDistanceScale { get; }
         public int PressCap { get; }
         public double CrowdPenalty { get; }
-        public double TargetSwitchMargin { get; }
-        public int TargetMinHoldTicks { get; }
+        public double TargetSwitchMargin { get; private set; }
+        public int TargetMinHoldTicks { get; private set; }
         // Provisional, arbitrarily chosen T16b-3a-1 tuning (degrees, metres, ticks).
         public double ApproachNonMeleeScale { get; }
         public double KeepAlignTolerance { get; }
         public double FlankAngle { get; }
         public double FlankRadius { get; }
-        public double HarassMargin { get; }
+        public double HarassMargin { get; private set; }
         public int HarassIntervalTicks { get; }
         public int HarassRecoverTicks { get; }
         public int HarassWithdrawMaxTicks { get; }
@@ -144,8 +176,8 @@ namespace BehindTheCurtain.Core
         public double KeepDistanceSpeed { get; }
         public double AttackArrivalMargin { get; }
         public double ThreatRadius { get; }
-        public double KeepMin { get; }
-        public double KeepMax { get; }
+        public double KeepMin { get; private set; }
+        public double KeepMax { get; private set; }
         public double WeightJitter { get; }
         public int ReevaluationIntervalTicks { get; }
         public double KeepDistanceWeight { get; }
@@ -166,11 +198,11 @@ namespace BehindTheCurtain.Core
             }
         }
         // Provisional, arbitrarily chosen intercept geometry tolerances (metres).
-        public double InterceptStandOff { get; }
+        public double InterceptStandOff { get; private set; }
         public double InterceptHoldTolerance { get; }
         public double InterceptClearance { get; }
         public double InterceptWaypointTolerance { get; }
-        public double InterceptDistance { get; }
+        public double InterceptDistance { get; private set; }
         public double SpreadDistance { get; }
         public double AttackRange { get; }
         // Provisional, arbitrarily chosen T16b-1 distances.
@@ -187,7 +219,7 @@ namespace BehindTheCurtain.Core
         public double AttackWeight { get; }
         public double InterceptPositionFloor { get; }
         public double PersistenceBonus { get; }
-        internal bool IsValid => Positive(TargetDistanceScale) && PressCap > 0
+        internal bool IsValid => TemperamentTuning != null && TemperamentTuning.IsValid && Positive(TargetDistanceScale) && PressCap > 0
             && Positive(CrowdPenalty) && CrowdPenalty <= 1 && Positive(TargetSwitchMargin)
             && TargetSwitchMargin >= 1 && TargetMinHoldTicks >= 0 && AiNumber.Weight(ApproachNonMeleeScale)
             && AiNumber.Weight(KeepAlignTolerance) && KeepAlignTolerance <= 180 && Positive(FlankAngle) && FlankAngle <= 180 && Positive(FlankRadius)

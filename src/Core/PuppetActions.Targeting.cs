@@ -34,7 +34,8 @@ namespace BehindTheCurtain.Core
         {
             int count = OtherPressure(c, target.Id);
             return 1 / (1 + Distance(c.Agent.Position, target.Position) / settings.TargetDistanceScale)
-                * (count < settings.PressCap ? 1 : Math.Pow(settings.CrowdPenalty, count - settings.PressCap + 1));
+                * (count < settings.PressCap ? 1 : Math.Pow(settings.CrowdPenalty, count - settings.PressCap + 1))
+                * settings.PressureFactor(count);
         }
         private AgentState? BestTarget(UtilityContext c, double radius)
         {

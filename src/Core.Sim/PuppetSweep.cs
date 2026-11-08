@@ -38,7 +38,7 @@ public static class PuppetSweep
         public string Print(string rank) => Rejection != null ? $"{rank} | rejected | - | - | - | - | - | - | - | - | - | - | {Tuning} ({Rejection})"
             : $"{rank} | {Failures} | {Stutter} | {Number(Swap)} | {Number(Stop)} | {(NoDepartures ? "0(벗어남 없음)" : Number(Pass))} | {Number(Mean)} | {Number(Duration)} | {(Cycles.Completion.HasValue ? Number(Cycles.Completion) + "%" : "n/a")} | {Number(Dwell)} | {Number(OrbitGap)} | {Contracts27.Count} | {Tuning}";
     }
-    private static Row Evaluate(Dictionary<string, string> values, PuppetScenarioSettings scenario, SweepSettings sweep)
+    private static Row Evaluate(Dictionary<string, string> values, PuppetScenarioSettings scenario, SweepSettings sweep, string temperament)
     {
         if (!PuppetTuningBuilder.TryBuild(values, scenario, out var settings, out var tuning, out var reason))
             return new(0, 0, null, null, null, 0, string.Join(",", values.Select(e => e.Key + "=" + e.Value)), reason);
@@ -54,7 +54,7 @@ public static class PuppetSweep
         foreach (string stress in new[] { "none", "tension", "mixed" })
             foreach (string name in PuppetSimulation.Names)
             {
-                var r = PuppetSimulation.Run(name, 1, null, settings, scenario, stress);
+                var r = PuppetSimulation.Run(name, temperament, 1, null, settings, scenario, stress);
                 var violations = ContractViolations(r, scenario);
                 if (violations.Count > 0) contracts.Add(stress + "/" + name + " " + string.Join(", ", violations));
                 RecordOscillation(r, stress + "/" + name);
@@ -66,7 +66,7 @@ public static class PuppetSweep
             foreach (string name in new[] { "approach", "healer", "standstill", "duo", "duo-swap" })
             {
                 bool duo = name is "duo" or "duo-swap";
-                var r = PuppetSimulation.Run(name, seed, null, settings, scenario, "none", duo, loadout: duo ? "mixed" : "presets");
+                var r = PuppetSimulation.Run(name, temperament, seed, null, settings, scenario, "none", duo, loadout: duo ? "mixed" : "presets");
                 RecordOscillation(r, "15회 none/" + name + " seed " + seed);
                 foreach (var pattern in SweepMetrics.ForbiddenPatterns(r, scenario))
                     patterns[pattern.Key] = patterns.GetValueOrDefault(pattern.Key) + pattern.Value;
@@ -80,7 +80,7 @@ public static class PuppetSweep
                     stops.Add(SweepMetrics.StandstillLatency(r, stop, settings!.TicksPerSecond));
                 }
             }
-            var orbit = PuppetSimulation.Run("orbit", seed, settings: settings, scenario: scenario);
+            var orbit = PuppetSimulation.Run("orbit", temperament, seed, settings: settings, scenario: scenario);
             departures.AddRange(SweepMetrics.OrbitDepartures(orbit, sweep));
             gaps.Add(orbit.InterceptMeanDistance);
         }
@@ -104,11 +104,22 @@ public static class PuppetSweep
     public static int Run(string[] arguments, TextWriter output, TextWriter error, SweepSettings? sweep = null, PuppetScenarioSettings? scenario = null)
     {
         sweep ??= new(); scenario ??= new();
-        if (!TryExpand(arguments, sweep.SweepMaxCombinations, out var combinations, out var reason)) { error.WriteLine(reason); return 2; }
+        string temperament = "none";
+        var remaining = new List<string>();
+        bool seenTemperament = false;
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            if (arguments[i] != "--temperament") { remaining.Add(arguments[i]); continue; }
+            if (seenTemperament || ++i == arguments.Length || !TemperamentPresets.Names.Contains(arguments[i]))
+            { error.WriteLine("Expected one --temperament none|bold|cautious|persistent|whimsical|mixed"); return 2; }
+            seenTemperament = true; temperament = arguments[i];
+        }
+        if (seenTemperament) output.WriteLine("temperament=" + temperament);
+        if (!TryExpand(remaining.ToArray(), sweep.SweepMaxCombinations, out var combinations, out var reason)) { error.WriteLine(reason); return 2; }
         output.WriteLine("rank | forbidden | stutter | latency(i) | latency(ii) | latency(iii) | latency mean(tick) | action duration(tick) | harass cycle | attack dwell(tick) | orbit gap(m) | contracts27 | U7 F6");
-        var baseline = Evaluate(new(), scenario, sweep);
+        var baseline = Evaluate(new(), scenario, sweep, temperament);
         output.WriteLine(baseline.Print("baseline"));
-        var rows = combinations.Select(c => Evaluate(c, scenario, sweep)).OrderBy(r => r.Rejection != null)
+        var rows = combinations.Select(c => Evaluate(c, scenario, sweep, temperament)).OrderBy(r => r.Rejection != null)
             .ThenBy(r => r.Failures != 0).ThenBy(r => r.Stutter).ThenBy(r => r.Mean ?? double.PositiveInfinity).ToArray();
         for (int i = 0; i < rows.Length; i++) output.WriteLine(rows[i].Print((i + 1).ToString(CultureInfo.InvariantCulture)));
         foreach (var entry in new[] { (Rank: "baseline", Value: baseline) }.Concat(rows.Select((row, i) => (Rank: (i + 1).ToString(CultureInfo.InvariantCulture), Value: row))))

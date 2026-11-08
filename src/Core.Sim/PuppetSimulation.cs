@@ -66,6 +66,10 @@ public sealed class PuppetTrajectory
     public IReadOnlyList<string> EquipmentTable { get; internal set; } = Array.Empty<string>();
     public List<PuppetFrame> Frames { get; } = new();
     /// <summary>Stationary non-attacking ticks past the limit for agents lacking their primary capability.</summary>
+    public List<double> InterceptGoalHealerDistances { get; } = new();
+    public List<double> HarassWaitingDistances { get; } = new();
+    public List<double> KeepDistances { get; } = new();
+    public Dictionary<int, int> TargetSwitchCounts { get; } = new();
     public int InactivityFailures { get; internal set; }
     public int LongestInactiveTicks { get; internal set; }
     public Dictionary<int, int> MaxDirectionReversals { get; } = new();
@@ -148,7 +152,13 @@ public static class PuppetSimulation
 
     public static PuppetTrajectory Run(string name, ulong seed, IntentionSettings? intentions,
         PuppetSettings? settings, PuppetScenarioSettings? scenario, string stress, bool cast, DirectorProfile? profile = null, string loadout = "presets", bool explicitPresets = false)
+        => Run(name, "none", seed, intentions, settings, scenario, stress, cast, profile, loadout, explicitPresets);
+
+    public static PuppetTrajectory Run(string name, string temperament, ulong seed = 1, IntentionSettings? intentions = null,
+        PuppetSettings? settings = null, PuppetScenarioSettings? scenario = null, string stress = "none", bool cast = false,
+        DirectorProfile? profile = null, string loadout = "presets", bool explicitPresets = false)
     {
+        if (!TemperamentPresets.Names.Contains(temperament)) throw new ArgumentException("Unknown temperament", nameof(temperament));
         if (loadout is not ("presets" or "mixed" or "noprotect")) throw new ArgumentException("Unknown loadout", nameof(loadout));
         if (stress is not ("none" or "tension" or "mixed")) throw new ArgumentException("Unknown stress", nameof(stress));
         if (!Names.Contains(name)) throw new ArgumentException("Unknown puppet scenario", nameof(name));
@@ -171,6 +181,8 @@ public static class PuppetSimulation
         Add(11, TargetRole.Guard, scenario.SecondGuardStart);
         Add(12, TargetRole.Attacker, scenario.AttackerStart);
         Add(13, TargetRole.Healer, scenario.HealerStart);
+        foreach (var agent in world.GetAgents().Where(a => a.Side == Side.Puppets))
+            world.SetTemperament(agent.Id, TemperamentPresets.ForAgent(temperament, agent.Id.Value));
         if (cast && !DirectorCasting.Assign(world).Success) throw new InvalidOperationException("Casting failed");
         var brain = PuppetBrain.Create(world, settings, new DeterministicRandom(seed), profile ?? new DirectorProfile()).Value;
         var result = new PuppetTrajectory { HasHealerThreat = world.GetBlackboard(Side.Puppets).Value.GetFact<AgentId>(TargetFactIds.HealerThreat).Success };
@@ -182,7 +194,7 @@ public static class PuppetSimulation
         result.EquipmentTable = world.GetAgents().Where(a => a.Side == Side.Puppets).Select(a =>
         {
             var equipment = world.GetLoadout(a.Id).Value;
-            return FormattableString.Invariant($"{a.Id.Value}:{a.Role} equipment={string.Join(",", equipment.EquipmentIds)} capabilities={string.Join(",", equipment.Capabilities)} attackRange={equipment.GetAttackRange(settings):F2} moveSpeedScale={equipment.MoveSpeedScale:F2} goal={RoleContract.ForRole(a.Role).Goal}");
+            return FormattableString.Invariant($"{a.Id.Value}:{a.Role} equipment={string.Join(",", equipment.EquipmentIds)} capabilities={string.Join(",", equipment.Capabilities)} attackRange={equipment.GetAttackRange(settings):F2} moveSpeedScale={equipment.MoveSpeedScale:F2} goal={RoleContract.ForRole(a.Role).Goal} temperament={temperament} boldness={world.GetTemperament(a.Id).Value[TemperamentAxisIds.Boldness]:F1} persistence={world.GetTemperament(a.Id).Value[TemperamentAxisIds.Persistence]:F1}");
         }).ToArray();
         var inactive = new Dictionary<int, int>();
         var outside = new Dictionary<int, int>();
@@ -244,7 +256,20 @@ public static class PuppetSimulation
                 var a = after[i]; int id = a.Id.Value;
                 string action = a.CurrentAction ?? "none";
                 result.ActionAgentTicks[action] = result.ActionAgentTicks.GetValueOrDefault(action) + 1;
-                var phase = brain.GetDecision(a.Id).Success ? brain.GetDecision(a.Id).Value.HarassPhase : null;
+                var decision = brain.GetDecision(a.Id);
+                var phase = decision.Success ? decision.Value.HarassPhase : null;
+                if (!result.TargetSwitchCounts.ContainsKey(id)) result.TargetSwitchCounts[id] = 0;
+                if (tick > 0 && before[i].Target.HasValue && a.Target.HasValue && !Nullable.Equals(before[i].Target, a.Target))
+                    result.TargetSwitchCounts[id]++;
+                if (a.CurrentAction == ActionIds.Intercept && decision.Success)
+                {
+                    var healer = before.FirstOrDefault(h => h.Role == TargetRole.Healer);
+                    if (healer != null) result.InterceptGoalHealerDistances.Add(Distance(decision.Value.Goal, healer.Position));
+                }
+                if (a.CurrentAction == ActionIds.Harass && phase == HarassPhase.Waiting)
+                    result.HarassWaitingDistances.Add(Distance(a.Position, TargetPosition(a)));
+                if (a.CurrentAction == ActionIds.KeepDistance)
+                    result.KeepDistances.Add(Distance(a.Position, TargetPosition(a)));
                 if (a.Target.HasValue && result.TargetAgentTicks.ContainsKey(a.Target.Value.Value))
                 {
                     result.TargetedAgentTicks++;
@@ -395,6 +420,8 @@ public static class PuppetSimulation
     {
         settings ??= new PuppetScenarioSettings();
         foreach (var row in result.EquipmentTable) output.WriteLine(row);
+        string Mean(List<double> values) => values.Count == 0 ? "n/a" : values.Average().ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+        output.WriteLine($"temperamentMetrics interceptGoalHealer={Mean(result.InterceptGoalHealerDistances)} harassWaiting={Mean(result.HarassWaitingDistances)} keepDistance={Mean(result.KeepDistances)} targetSwitches={string.Join(",", result.TargetSwitchCounts.Select(p => p.Key + ":" + p.Value))}");
         foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
             output.WriteLine(FormattableString.Invariant($"tick={frame.Tick} player=({frame.Player.X:F2},{frame.Player.Z:F2}) ") +
                 string.Join(" ", frame.Puppets.Select(a => FormattableString.Invariant(

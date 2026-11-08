@@ -69,7 +69,7 @@ namespace BehindTheCurtain.Core
             foreach (var agent in world.GetAgents())
             {
                 if (agent.Side != Side.Puppets) continue;
-                var actions = new PuppetActions(settings, agent.Position);
+                var actions = new PuppetActions(settings.ApplyTemperament(world.GetTemperament(agent.Id).Value), agent.Position);
                 var selector = UtilitySelector.Create(world, agent.Id, actions.Create(agent.Role, new DeterministicRandom(encounterSeed ^ (ulong)agent.Id.Value), profile, world.GetLoadout(agent.Id).Value),
                     new UtilitySettings(1, settings.PersistenceBonus), random);
                 if (!selector.Success) return AiResult<PuppetBrain>.Fail(selector.Failure);
