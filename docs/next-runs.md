@@ -530,14 +530,19 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag retry --prompt-file docs/runs/T16b-3b-1r.md
   ```
 
-- [ ] **T16b-3b-1t 고쳐진 실패 줄에 기대던 단언 하나 (tests, fix)** — `"tension/healer"` 단언을 "출력 = 독립 실행", "결 없음과 결 mixed의 출력이 다르다"로. 테스트 파일 하나만. 다른 테스트에 같은 패턴(고정된 실패 줄 단언)이 없는 것은 grep으로 확인함(나머지는 이미 "출력 = 독립 실행" 형태).
+- [x] **T16b-3b-1t 고쳐진 실패 줄에 기대던 단언 하나 (tests, fix)** — `94eb2d4`. 19만 토큰, 2분. 722 통과. 결 없음과 결 mixed 출력 비교에서 `temperament=` 머리 줄을 빼고 비교(머리 줄을 넣으면 늘 달라 검사가 무의미). 원래 설명: `"tension/healer"` 단언을 "출력 = 독립 실행", "결 없음과 결 mixed의 출력이 다르다"로. 테스트 파일 하나만. 다른 테스트에 같은 패턴(고정된 실패 줄 단언)이 없는 것은 grep으로 확인함(나머지는 이미 "출력 = 독립 실행" 형태).
   ```powershell
   jevcode run --tag fix --prompt-file docs/runs/T16b-3b-1t.md
   ```
 
-- [ ] **U9 결을 인형마다 주고 보이게 (Unity)** — 교전마다 시드로 결(Random/Off/Manual), F3으로 결 끄기 비교, 대기 자세(대담: 앞으로 숙임, 신중: 낮추고 젖혀 경계), 머리가 대상 쪽을 봄(변덕의 전환이 비틀거림 없이 고개부터 돌아가는 것으로 보임), F1에 결 값. Unity 에디터를 열어 두고, MCP는 끄고 돌린다.
+- [x] **U9 결을 인형마다 주고 보이게 (Unity)** — `0806449`. 29만 토큰, 3분. 722 통과, Unity passed. 루트 Transform은 읽기만. 결 시드 = Seed·교전 번호·AgentId로 DeterministicRandom. **기본 Random이라 이 커밋부터 Play 행동이 달라짐**(F3 끄기나 TemperamentMode Off로 예전 행동). F3 상태는 다음 교전에도 유지. Manual 자리 순서 앞왼·앞오·뒤왼·뒤오, x=대담 y=집착. 원래 설명: 교전마다 시드로 결(Random/Off/Manual), F3으로 결 끄기 비교, 대기 자세(대담: 앞으로 숙임, 신중: 낮추고 젖혀 경계), 머리가 대상 쪽을 봄(변덕의 전환이 비틀거림 없이 고개부터 돌아가는 것으로 보임), F1에 결 값. Unity 에디터를 열어 두고, MCP는 끄고 돌린다.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/U9.md
+  ```
+
+- [ ] **U10 최소 피해 연결 (Unity)** — 결정(2026-11-08): 근접 15/10, 원거리 10/5, 광역 6/8(체력/자세, 임의값). 부서진 인형의 연결부는 끊긴 것으로(기존 공개 API `JointAttack.Break`로, 카운터 창이 열린 동안만. Core 변경 없음), 교전은 "모두 쓰러짐"과 "3사이클" 중 먼저, 카운터 → 장력 감소는 U11로 따로(한 번에 하나씩). 쓰러진 인형은 대상·가림에서 빠지고, 부서지면 실이 위로 감겨 사라져 실 회수가 보인다. F1에 체력·자세·상태와 조율 예산. 회복(3c-1)의 전제.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/U10.md
   ```
 
 ## 참고
