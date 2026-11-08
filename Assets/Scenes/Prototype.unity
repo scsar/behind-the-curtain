@@ -451,7 +451,7 @@ MonoBehaviour:
     - Name: PuppetSettings.weightJitter
       Value: 0.15
     - Name: PuppetSettings.reevaluationIntervalTicks
-      Value: 30
+      Value: 10
     - Name: PuppetSettings.keepDistanceWeight
       Value: 1.2
     - Name: PuppetSettings.passiveInterceptScale
