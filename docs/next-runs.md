@@ -524,9 +524,20 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag fix --prompt-file docs/runs/T16b-3b-1f.md
   ```
 
-- [ ] **T16b-3b-1r hold 여유 구간 + 막아서기를 이어받는 공격 (Core, retry)** — hold는 3b-1f 그대로. 막아서던 개체가 칠 수 있게 되면 그 판단의 attack 배역 몫을 max(attack, intercept가 받았을 몫)으로("보호하려고 친다"). intercept ↔ attack은 공격 거리 경계 전환이라 진동으로 세지 않음. `OscillationTests`의 고정 기대값을 "출력 = 독립 실행" + "현재 기본 주기에서 0"이라는 불변식으로 바꿈(이 테스트만 수정 허락).
+- [x] **T16b-3b-1r hold 여유 구간 + 막아서기를 이어받는 공격 (Core, retry)** — 수락(`618a57a`, 테스트 1개 실패 상태). 183만 토큰, 10분. 원래 실패 2개 해결, **해시 하나도 안 바뀜**, 27조합 계약이 결 없음·bold·mixed 모두 0, **주기 15·20도 0**(S2부터 남아 있던 waver 흔들림이 함께 사라짐). 상속 예시: tick 132 장력 0.4에서 attack 1.08 > waver 0.60. 남은 실패는 `TemperamentTests.SweepForwardsTemperamentToContracts27`이 고쳐진 실패 줄("tension/healer")을 증거로 단언한 것 — 같은 패턴을 3b-1이 만든 테스트에서 미리 찾지 못한 명령 빈틈. 추가 공개 API: `ActionScore.InheritedRoleScore`, `DecisionCause.Reason`(표시용). → T16b-3b-1t
+  원래 설명: hold는 3b-1f 그대로. 막아서던 개체가 칠 수 있게 되면 그 판단의 attack 배역 몫을 max(attack, intercept가 받았을 몫)으로("보호하려고 친다"). intercept ↔ attack은 공격 거리 경계 전환이라 진동으로 세지 않음. `OscillationTests`의 고정 기대값을 "출력 = 독립 실행" + "현재 기본 주기에서 0"이라는 불변식으로 바꿈(이 테스트만 수정 허락).
   ```powershell
   jevcode run --tag retry --prompt-file docs/runs/T16b-3b-1r.md
+  ```
+
+- [ ] **T16b-3b-1t 고쳐진 실패 줄에 기대던 단언 하나 (tests, fix)** — `"tension/healer"` 단언을 "출력 = 독립 실행", "결 없음과 결 mixed의 출력이 다르다"로. 테스트 파일 하나만. 다른 테스트에 같은 패턴(고정된 실패 줄 단언)이 없는 것은 grep으로 확인함(나머지는 이미 "출력 = 독립 실행" 형태).
+  ```powershell
+  jevcode run --tag fix --prompt-file docs/runs/T16b-3b-1t.md
+  ```
+
+- [ ] **U9 결을 인형마다 주고 보이게 (Unity)** — 교전마다 시드로 결(Random/Off/Manual), F3으로 결 끄기 비교, 대기 자세(대담: 앞으로 숙임, 신중: 낮추고 젖혀 경계), 머리가 대상 쪽을 봄(변덕의 전환이 비틀거림 없이 고개부터 돌아가는 것으로 보임), F1에 결 값. Unity 에디터를 열어 두고, MCP는 끄고 돌린다.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/U9.md
   ```
 
 ## 참고
