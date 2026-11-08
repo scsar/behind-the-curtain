@@ -220,7 +220,24 @@ public class TemperamentTests
         var output = new StringWriter(); var error = new StringWriter();
         Assert.Equal(0, PuppetSweep.Run(new[] { "--temperament", "mixed" }, output, error));
         Assert.Contains("temperament=mixed", output.ToString());
-        Assert.Contains("tension/healer", output.ToString());
+        var settings = new PuppetSettings(arenaHalfSize: 30);
+        int failed = 0;
+        foreach (string stress in new[] { "none", "tension", "mixed" })
+            foreach (string name in PuppetSimulation.Names)
+            {
+                var result = PuppetSimulation.Run(name, "mixed", settings: settings, stress: stress);
+                if (result.MaxSwitchesInWindow > 3 || result.PingPongs > 0 || result.SimultaneousRatio >= .2
+                    || result.MaxInterceptors > 1 || result.MissedAttackWindows > 0) failed++;
+            }
+        var lines = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var baseline = lines.Single(line => line.StartsWith("baseline |"));
+        Assert.Equal(failed.ToString(), baseline.Split('|')[11].Trim());
+
+        var withoutTemperament = new StringWriter();
+        Assert.Equal(0, PuppetSweep.Run(Array.Empty<string>(), withoutTemperament, error));
+        var defaultLines = withoutTemperament.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.NotEqual(string.Join("\n", defaultLines),
+            string.Join("\n", lines.Where(line => !line.StartsWith("temperament="))));
         Assert.Equal("", error.ToString());
     }
 
