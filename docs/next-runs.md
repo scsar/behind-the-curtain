@@ -508,7 +508,7 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/D1.md
   ```
 
-- [ ] **U8 마리오네트 모양과 행동 자세 (Unity)** — 상자로는 동작이 읽히지 않는다는 Play 피드백(2026-11-08). 결(T16b-3b)의 미묘한 차이를 Play로 보려면 먼저 행동이 보여야 해서 3b 앞에 둔다. 상자는 콜라이더·연결부 기준으로 남기고 시각 자식만 더한다. 이동 방향(앞으로 숙임/뒤로 젖힘), 공격 준비와 바닥 경고 동기화, 견제 네 단계, 막아서기 자세, F2로 상자와 비교. Unity에서는 장력·피해가 연결되지 않아 waver·그로기·쓰러짐 자세는 범위 밖. Blender 모델(따로 조각난 마리오네트 부위)은 이걸로 Play한 뒤 부족하면 검토한다. **Unity 에디터를 열어 두고, MCP for Unity와 Blender MCP는 끄고 돌린다.**
+- [x] **U8 마리오네트 모양과 행동 자세 (Unity)** — `13d1fae`. 53만 토큰, 4분. 675 통과, Unity recompile passed. 루트에는 MeshRenderer 토글만(위치·콜라이더 그대로), 공격 내리치기는 CreateSlam과 같은 ImpactTick을 씀. Play: "확실히 잘 보인다" → Blender는 미룸. 작은 관찰: F1 라벨의 견제 단계 표시가 문자열 Replace라 점수 줄의 `harass`에도 `/단계`가 붙음(개발용 표시만). 상자로는 동작이 읽히지 않는다는 Play 피드백(2026-11-08)에서 시작. 결(T16b-3b)의 미묘한 차이를 Play로 보려면 먼저 행동이 보여야 해서 3b 앞에 둔다. 상자는 콜라이더·연결부 기준으로 남기고 시각 자식만 더한다. 이동 방향(앞으로 숙임/뒤로 젖힘), 공격 준비와 바닥 경고 동기화, 견제 네 단계, 막아서기 자세, F2로 상자와 비교. Unity에서는 장력·피해가 연결되지 않아 waver·그로기·쓰러짐 자세는 범위 밖. Blender 모델(따로 조각난 마리오네트 부위)은 이걸로 Play한 뒤 부족하면 검토한다. **Unity 에디터를 열어 두고, MCP for Unity와 Blender MCP는 끄고 돌린다.**
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/U8.md
   ```
