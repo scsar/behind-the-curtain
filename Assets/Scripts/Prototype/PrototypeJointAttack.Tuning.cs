@@ -52,6 +52,12 @@ namespace BehindTheCurtain.Prototype
         {
             var keyboard = Keyboard.current;
             if (!Application.isFocused || keyboard == null || brain == null) return;
+            if (keyboard.f3Key.wasPressedThisFrame)
+            {
+                temperamentsEnabled = !temperamentsEnabled;
+                ApplyTemperaments();
+                ApplyPuppetTuning(false);
+            }
             if (keyboard.f5Key.wasPressedThisFrame) ApplyPuppetTuning(false);
             if (keyboard.f6Key.wasPressedThisFrame)
             {

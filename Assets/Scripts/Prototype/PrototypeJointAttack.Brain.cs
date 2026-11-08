@@ -81,6 +81,7 @@ namespace BehindTheCurtain.Prototype
             }
             previousPositions = (Vector3[])restPositions.Clone();
             previousRotations = (Quaternion[])restRotations.Clone();
+            ApplyTemperaments();
             if (!ApplyPuppetTuning(true)) return false;
             if (brainLines == null)
             {
@@ -147,7 +148,7 @@ namespace BehindTheCurtain.Prototype
         {
             if (!debugOverlay || brain == null || Camera.main == null) return;
             GUI.Box(new Rect(8f, 0f, Screen.width - 16f, 26f),
-                $"판단 {brainTuning.ReevaluationIntervalTicks} ticks | 이동 {brainTuning.MoveSpeed:0.####} | 견제 {brainTuning.HarassIntervalTicks} / 회복 {brainTuning.HarassRecoverTicks} ticks | 측면 반경 {brainTuning.FlankRadius:0.####} | 기본값과 다른 항목 {PrototypePuppetTuning.Differences(appliedPuppetTuning).Length}");
+                $"결 {settings.TemperamentMode} / F3 {(temperamentsEnabled ? "켜짐" : "꺼짐")} | 판단 {brainTuning.ReevaluationIntervalTicks} ticks | 이동 {brainTuning.MoveSpeed:0.####} | 견제 {brainTuning.HarassIntervalTicks} / 회복 {brainTuning.HarassRecoverTicks} ticks | 측면 반경 {brainTuning.FlankRadius:0.####} | 기본값과 다른 항목 {PrototypePuppetTuning.Differences(appliedPuppetTuning).Length}");
             for (var i = 0; i < puppets.Length; i++)
             {
                 var agent = expedition.EncounterWorld.Get(PuppetAgentId(i)).Value;
@@ -155,6 +156,8 @@ namespace BehindTheCurtain.Prototype
                 var text = $"{agent.Id.Value}: {agent.CurrentAction ?? "pending"} | target {agent.Target?.Value.ToString() ?? "-"}";
                 if (decision.Success && decision.Value.HarassPhase.HasValue)
                     text = text.Replace(agent.CurrentAction ?? "pending", (agent.CurrentAction ?? "pending") + "/" + decision.Value.HarassPhase.Value);
+                var temperament = expedition.EncounterWorld.GetTemperament(agent.Id).Value;
+                text += $"\n결 대담 {FormatTemperament(temperament[TemperamentAxisIds.Boldness])} / 집착 {FormatTemperament(temperament[TemperamentAxisIds.Persistence])}";
                 var contract = RoleContract.ForRole(agent.Role);
                 var kind = contract.Classify(agent.CurrentAction);
                 var classification = kind == ContractActionKind.Primary ? "우선"
@@ -182,8 +185,8 @@ namespace BehindTheCurtain.Prototype
                 var screen = Camera.main.WorldToScreenPoint(anchor);
                 if (screen.z > 0f)
                     GUI.Box(new Rect(screen.x - settings.BrainLabelWidth / 2f,
-                        Mathf.Max(0f, Screen.height - screen.y - settings.BrainLabelPanelHeight),
-                        settings.BrainLabelWidth, settings.BrainLabelPanelHeight), text);
+                        Mathf.Max(0f, Screen.height - screen.y - settings.BrainLabelPanelHeight - settings.TemperamentLabelHeight),
+                        settings.BrainLabelWidth, settings.BrainLabelPanelHeight + settings.TemperamentLabelHeight), text);
             }
         }
     }

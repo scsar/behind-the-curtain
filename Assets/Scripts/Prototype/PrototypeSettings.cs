@@ -28,9 +28,22 @@ namespace BehindTheCurtain.Prototype
         public PuppetTuningEntry(string name, double value) { Name = name; Value = value; }
     }
 
+    public enum TemperamentMode { Random, Off, Manual }
+
     [Serializable]
     public sealed class PrototypeSettings
     {
+        public TemperamentMode TemperamentMode = TemperamentMode.Random;
+        // Slot order: front left, front right, rear left, rear right. x: boldness, y: persistence.
+        public Vector2[] ManualTemperaments = new Vector2[4];
+        // Arbitrarily chosen presentation values, confined to Marionette children.
+        public float BoldLeanAngle = 10f;
+        public float BoldChestForward = 0.04f;
+        public float CautiousCrouch = 0.06f;
+        public float CautiousLeanAngle = 6f;
+        public float CautiousArmAngle = 25f;
+        public float HeadTurnLimit = 70f;
+        public float TemperamentLabelHeight = 22f;
         public System.Collections.Generic.List<PuppetTuningEntry> PuppetTuning = new System.Collections.Generic.List<PuppetTuningEntry>();
         // Arbitrarily chosen presentation values only; not combat geometry or timing.
         public Vector3 MarionetteTorsoSize = new Vector3(0.9f, 0.55f, 0.9f);

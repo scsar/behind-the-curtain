@@ -53,10 +53,11 @@ namespace BehindTheCurtain.Prototype
                 v.Torso = VisualPart(v.Body, "Torso", PrimitiveType.Cube, Vector3.up * height,
                     settings.MarionetteTorsoSize, puppetMaterials[i]);
                 var headHeight = height + settings.MarionetteTorsoSize.y / 2f + settings.MarionetteHeadDiameter / 2f;
-                v.Head = VisualPart(v.Body, "Head", PrimitiveType.Sphere, Vector3.up * headHeight,
+                v.Head = VisualPivot(v.Body, "Head pivot", Vector3.up * headHeight);
+                VisualPart(v.Head, "Head", PrimitiveType.Sphere, Vector3.zero,
                     Vector3.one * settings.MarionetteHeadDiameter, puppetMaterials[i]);
-                VisualPart(v.Body, "Blindfold", PrimitiveType.Cube,
-                    new Vector3(0f, headHeight, settings.MarionetteHeadDiameter / 2f), settings.MarionetteFaceSize, dark);
+                VisualPart(v.Head, "Blindfold", PrimitiveType.Cube,
+                    new Vector3(0f, 0f, settings.MarionetteHeadDiameter / 2f), settings.MarionetteFaceSize, dark);
                 v.RightArm = VisualPivot(v.Body, "Right shoulder", new Vector3(settings.MarionetteShoulderX, height + settings.MarionetteTorsoSize.y / 2f, 0f));
                 v.LeftArm = VisualPivot(v.Body, "Left shoulder", new Vector3(-settings.MarionetteShoulderX, v.RightArm.localPosition.y, 0f));
                 v.RightLeg = VisualPivot(v.Body, "Right hip", new Vector3(settings.MarionetteHipX, height - settings.MarionetteTorsoSize.y / 2f, 0f));
@@ -157,6 +158,35 @@ namespace BehindTheCurtain.Prototype
                         : Mathf.Lerp(settings.AttackRaisedAngle, settings.AttackSwingAngle,
                             Mathf.Clamp01((float)(tick - v.ImpactTick) / Mathf.Max(1, settings.SwingTicks)));
                 }
+                var temperament = expedition.EncounterWorld.GetTemperament(agent.Id).Value;
+                var boldness = (float)temperament[TemperamentAxisIds.Boldness];
+                if (boldness > 0f)
+                {
+                    body.x += boldness * settings.BoldLeanAngle;
+                    offset.z += boldness * settings.BoldChestForward;
+                }
+                else
+                {
+                    offset.y += boldness * settings.CautiousCrouch;
+                    body.x += boldness * settings.CautiousLeanAngle;
+                    right.x += boldness * settings.CautiousArmAngle;
+                }
+                // Target yaw is measured from the puppet root's front, never its leaning body.
+                var headYaw = 0f;
+                if (decision.Success && decision.Value.Target.HasValue)
+                {
+                    var target = expedition.EncounterWorld.Get(decision.Value.Target.Value);
+                    if (target.Success)
+                    {
+                        var direction = new Vector3((float)target.Value.Position.X, puppets[i].position.y,
+                            (float)target.Value.Position.Z) - puppets[i].position;
+                        var facing = Quaternion.Inverse(puppets[i].rotation) * direction;
+                        if (facing.sqrMagnitude > Mathf.Epsilon)
+                            headYaw = Mathf.Clamp(Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg,
+                                -Mathf.Abs(settings.HeadTurnLimit), Mathf.Abs(settings.HeadTurnLimit));
+                    }
+                }
+                v.Head.localRotation = Quaternion.Slerp(v.Head.localRotation, Quaternion.Euler(0f, headYaw, 0f), blend);
                 v.Root.localPosition = Vector3.Lerp(v.Root.localPosition, offset, blend);
                 v.Body.localRotation = Quaternion.Slerp(v.Body.localRotation, Quaternion.Euler(body), blend);
                 v.RightArm.localRotation = Quaternion.Slerp(v.RightArm.localRotation, Quaternion.Euler(right), slamActive ? 1f : blend);
