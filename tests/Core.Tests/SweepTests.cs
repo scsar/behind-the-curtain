@@ -207,7 +207,7 @@ public class SweepTests
         using var w=new StringWriter();Assert.Equal(0,PuppetSweep.Run(Array.Empty<string>(),w,new StringWriter()));
         double pass=passes.Count==0?0:passes.Average();
         string passCell=passes.Count==0?"0(\uBC97\uC5B4\uB0A8 \uC5C6\uC74C)":pass.ToString("F2",System.Globalization.CultureInfo.InvariantCulture);
-        string expected=FormattableString.Invariant($"baseline | {failures} | {stutter} | {swaps.Average():F2} | {stops.Average():F2} | {passCell} | {(swaps.Average()+stops.Average()+pass)/3:F2} | {(double)total/runs:F2} | {cycles.Completion:F2}% | {dwell/15.0:F2} | {gaps.Average():F2} | ");
+        string expected=FormattableString.Invariant($"baseline | {failures} | {stutter} | {swaps.Average():F2} | {stops.Average():F2} | {passCell} | {(swaps.Average()+stops.Average()+pass)/3:F2} | {(double)total/runs:F2} | {cycles.Completion:F2}% | {dwell/15.0:F2} | {gaps.Average():F2} | 0 | ");
         Assert.Contains(expected,w.ToString());Assert.Equal(5,w.ToString().Split('\n',StringSplitOptions.RemoveEmptyEntries).Length);
     }
     [Fact]
@@ -240,7 +240,14 @@ public class SweepTests
             Assert.Equal("", error.ToString());
             return output.ToString();
         }
-        Assert.Equal(Run(), Run());
+        string first = Run();
+        Assert.Equal(first, Run());
+        var lines = first.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        foreach (string row in lines.Skip(1).Where(l => l.Contains('|')))
+        {
+            string[] cells = row.Split('|').Select(c => c.Trim()).ToArray();
+            Assert.Equal(int.Parse(cells[11]), lines.Count(l => l.StartsWith("rank " + cells[0] + " 27조합:")));
+        }
     }
     [Theory]
     [InlineData("approach")] [InlineData("healer")] [InlineData("standstill")] [InlineData("duo")] [InlineData("duo-swap")] [InlineData("passby")]

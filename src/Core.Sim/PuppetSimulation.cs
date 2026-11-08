@@ -85,6 +85,9 @@ public sealed class PuppetTrajectory
     public Dictionary<string, int> ActionAgentTicks { get; } = new();
     public int FleeTicks { get; internal set; }
     public Dictionary<int, List<int>> Switches { get; } = new();
+    internal Dictionary<int, List<ActionSwitch>> OscillationSwitches { get; } = new();
+    internal int OscillationAgent { get; set; }
+    internal ActionSwitch[] OscillationWindow { get; set; } = Array.Empty<ActionSwitch>();
     public int ChangedTicks { get; internal set; }
     public int SimultaneousTicks { get; internal set; }
     public int CoordinatedTicks { get; internal set; }
@@ -103,8 +106,29 @@ public sealed class PuppetTrajectory
     public Dictionary<int, int> LongestOutsideBand { get; } = new();
 }
 
+internal sealed record ActionSwitch(int Tick, string? Before, string? After, double Distance);
+
 public static class PuppetSimulation
 {
+    internal static bool IsAttackRangeBoundary(string? before, string? after, double newTargetDistance,
+        double previousTargetDistance, double attackRange) =>
+        before != after && (after == ActionIds.Attack && newTargetDistance <= attackRange
+            || before == ActionIds.Attack && previousTargetDistance > attackRange);
+
+    internal static void RecordOscillationSwitch(PuppetTrajectory result, int id, ActionSwitch change,
+        bool boundary, int windowTicks)
+    {
+        if (boundary) return;
+        if (!result.OscillationSwitches.TryGetValue(id, out var changes))
+            result.OscillationSwitches[id] = changes = new();
+        changes.Add(change);
+        var window = changes.Where(c => c.Tick > change.Tick - windowTicks).ToArray();
+        if (window.Length <= result.MaxSwitchesInWindow) return;
+        result.MaxSwitchesInWindow = window.Length;
+        result.OscillationAgent = id;
+        result.OscillationWindow = window;
+    }
+
     internal static bool HasHarassResponse(PuppetFrame frame) => frame.Puppets.Any(a =>
         a.CurrentAction == ActionIds.Harass && frame.HarassPhases.GetValueOrDefault(a.Id.Value)
             is HarassPhase.Strike or HarassPhase.Recover or HarassPhase.Withdraw);
@@ -258,7 +282,18 @@ public static class PuppetSimulation
                     changedActions.Add(a.CurrentAction);
                     // Resuming after Groggy is a new action, not an action-to-action oscillation.
                     bool wasActive = result.Frames[tick - 1].States.Single(s => s.Id.Equals(a.Id)).Status == PuppetStatus.Active;
-                    if (wasActive) result.Switches[id].Add(tick);
+                    if (wasActive)
+                    {
+                        result.Switches[id].Add(tick);
+                        double newDistance = Distance(a.Position, targetPosition);
+                        double previousDistance = Distance(a.Position, duo ? TargetPosition(before[i]) : player);
+                        bool boundary = IsAttackRangeBoundary(before[i].CurrentAction, a.CurrentAction,
+                            newDistance, previousDistance, world.GetAttackRange(a.Id, settings).Value);
+                        RecordOscillationSwitch(result, id,
+                            new ActionSwitch(tick, before[i].CurrentAction, a.CurrentAction,
+                                before[i].CurrentAction == ActionIds.Attack ? previousDistance : newDistance),
+                            boundary, scenario.SwitchWindowSeconds * settings.TicksPerSecond);
+                    }
                     else histories[id].Clear();
                     histories[id].Add(a.CurrentAction);
                     var h = histories[id];
@@ -266,8 +301,6 @@ public static class PuppetSimulation
                         ((h[^1] is ActionIds.Approach or ActionIds.Pressure && h[^2] is ActionIds.Hold or ActionIds.KeepDistance)
                         || (h[^2] is ActionIds.Approach or ActionIds.Pressure && h[^1] is ActionIds.Hold or ActionIds.KeepDistance))) result.PingPongs++;
                 }
-                int switches = result.Switches[id].Count(t => t > tick - scenario.SwitchWindowSeconds * settings.TicksPerSecond);
-                result.MaxSwitchesInWindow = Math.Max(result.MaxSwitchesInWindow, switches);
                 if (!world.CanAct(a.Id)) { inactive[id] = 0; continue; }
                 double oldDistance = Distance(before[i].Position, targetPosition), distance = Distance(a.Position, targetPosition);
                 bool unableToPerformPrimary = a.Role == TargetRole.Guard && !world.GetLoadout(a.Id).Value.HasCapability(CapabilityTag.Protect);

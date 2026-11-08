@@ -1,5 +1,21 @@
 # Core.Sim
 
+`contracts27`은 각 설정으로 `PuppetSimulation.Names`의 9개 시나리오 ×
+stress `none`, `tension`, `mixed`를 시드 1, 기본 장비, cast 없이 실행한 계약 실패 실행 수다.
+`TensionTests.StressContractsAndDeterminism`과 같이 진동 > 3, 왕복 > 0,
+군체 동기화 >= 0.2, 겹치기 > 1, 무반응 > 0 중 하나라도 위반하면 1회로 센다.
+기존 15회 집계와 분리하며 정렬에는 사용하지 않는다. 표 아래 `rank N 27조합:` 줄은
+실패 실행별 이름과 위반 기준·값을 표시한다. `rank N 진동` 줄은 15회와 27조합의
+진동 실패마다 최대 창의 개체, tick, 이전>다음 행동, 대상 거리를 표시한다.
+15회 실행은 `15회 none/시나리오 seed N`으로 구분한다. 동률이면 먼저 기록한 창을 쓴다.
+
+진동은 판단 주기와 무관하게 3초 창 `(tick - 3 * TicksPerSecond, tick]` 안의
+공격 거리 경계 전환을 제외한 행동 전환이 3회를 넘는 경우다.
+attack 진입 시 새 대상 거리가 공격 거리 이하이거나, attack 이탈 시 직전 tick의
+대상 거리가 공격 거리 초과이면 경계 전환이다. 두 거리 모두 전환 tick의 현재 위치로
+측정하며 duo는 해당 대상 플레이어, 그 외는 player를 사용한다.
+원래 `switches=` 기록, 왕복, 군체 동기화 및 Groggy 뒤 재개 처리는 유지한다.
+
 ## 수치 탐색
 
 ```sh
@@ -112,8 +128,9 @@ Metrics are measured every tick, not from the printed samples:
 - `flee`: non-distance-keeping agent ticks moving away from a human within 6m,
   measured against the same player position before/after movement. Spread allows
   the documented 0.3m distance increase. Player movement alone does not count.
-- `switches`: total changes per agent; `maxSwitches/3s`: maximum in any sliding
-  90-tick window; `pingPong`: approach/hold or approach/keepDistance round trips.
+- `switches`: total changes per agent; `maxSwitches/3s`: maximum excluding attack
+  range boundary transitions in any sliding 3-second window (90 ticks by default);
+  `pingPong`: approach/hold or approach/keepDistance round trips.
 - `simultaneous`: ticks with at least two changes remaining after excluding transitions into reservation actions (`intercept`, `surround`), divided by ticks with any change.
 - `coordinated`: ticks with at least two changes and at least one excluded reservation-action transition, using the same denominator. Mixed ticks can count in both.
 - `surroundOverlap`: missing, conflicting, or duplicate surround slot reservations (must be zero).
