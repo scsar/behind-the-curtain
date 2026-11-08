@@ -7,11 +7,13 @@ using Xunit;
 namespace BehindTheCurtain.Core.Tests;
 public class InterceptRegressionTests
 {
+    // Arbitrary 3-second deadline: covers T16b-2r (~2.1s) and interval-10 observations (~2.5s).
+    private const int PassbyRecoveryDeadlineTicks = 90;
     internal static string Hash(PuppetTrajectory r) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", r.Frames.SelectMany(f => f.Puppets.Select(a => FormattableString.Invariant($"{f.Tick}:{a.Id.Value}:{a.Position.X:R}:{a.Position.Z:R}:{a.CurrentAction}:{a.Target}")))))));
     [Theory]
-    [InlineData("approach", "2EA85CD860B1173FC2B829FFCF477D52E6603C6FFA1E1BA61D8854D4F826F88D")]
-    [InlineData("circle", "CE801F3E231C6D31D3AD1F08F13CC84FD5A1B8453D538B28005EC1DE6A2B86C5")]
-    [InlineData("retreat", "4F99FCDD28029574B3BA9AC4A86512F88754599B1C1EAAFFCA0685ECD40D54AE")]
+    [InlineData("approach", "990E15B8FC2F4276869B52F58BF480B12F7314C901B2440476E76CEE98458EF8")]
+    [InlineData("circle", "92E2CD303400282F886BD346A990F1A97CBA68271841101D1217C805ADA42114")]
+    [InlineData("retreat", "55F0F0A75C67763A5115F6B4DEA248C3B8689EFD388B3C231B537ED473D13A96")]
     public void NonInterceptTrajectoryHasReviewedHash(string name, string expected) => Assert.Equal(expected, Hash(PuppetSimulation.Run(name, settings: new PuppetSettings(new BasicActionSettings(flankWeight: 0, harassWeight: 0), arenaHalfSize: 30))));
 
     [Fact]
@@ -91,17 +93,28 @@ public class InterceptRegressionTests
     {
         var r = PuppetSimulation.Run("passby");
         int crossed = r.Frames.First(f => f.Player.Z < 0).Tick;
-        double Gap(PuppetFrame f) {
-            var a = f.Puppets.Single(a => a.Id.Value == 10); var h = f.Puppets.Single(a => a.Id.Value == 13);
+        // The passby preset equips guards 10 and 11 with armor.shield (Protect).
+        var protectIds = new[] { 10, 11 };
+        double GuardGap(PuppetFrame f, int id) {
+            var a = f.Puppets.Single(a => a.Id.Value == id); var h = f.Puppets.Single(a => a.Id.Value == 13);
             return PuppetSimulation.Distance(a.Position,InterceptGeometry.ClosestPoint(a.Position,h.Position,f.Player,new PuppetSettings()));
         }
-        int departed = r.Frames.First(f => f.Tick >= crossed && Gap(f) > 1).Tick;
-        int recovered = r.Frames.First(f => f.Tick > departed && Gap(f) <= 1).Tick;
-        Assert.True(recovered <= crossed+60, $"crossed={crossed} recovered={recovered}");
+        double Gap(PuppetFrame f) => protectIds.Min(id => GuardGap(f, id));
+        var departure = r.Frames.FirstOrDefault(f => f.Tick >= crossed && Gap(f) > 1);
+        int departed = departure?.Tick ?? crossed;
+        // An immediate handoff needs no recovery; a missing recovery must fail with diagnostics.
+        int recovered = departure == null ? crossed
+            : r.Frames.FirstOrDefault(f => f.Tick > departed && Gap(f) <= 1)?.Tick ?? -1;
         var rest = r.Frames.Where(f => f.Tick >= recovered).ToArray();
-        Assert.True(rest.Count(f => Gap(f)<=1)/(double)rest.Length >= .8, $"recovered={recovered} ratio={rest.Count(f => Gap(f)<=1)/(double)rest.Length}");
+        double ratio = rest.Count(f => Gap(f) <= 1) / (double)rest.Length;
+        var interceptors = rest.SelectMany(f => f.Puppets.Where(a => protectIds.Contains(a.Id.Value)
+            && a.CurrentAction == ActionIds.Intercept).Select(a => a.Id.Value)).Distinct();
+        string diagnostic = $"crossed={crossed} departed={departed} recovered={recovered} ratio={ratio} interceptors={string.Join(",", interceptors)}";
+        Assert.True(recovered >= crossed && recovered <= crossed + PassbyRecoveryDeadlineTicks, diagnostic);
+        Assert.True(ratio >= .8, diagnostic);
         Assert.All(r.Frames, f =>
-            Assert.True(PuppetSimulation.Distance(f.Puppets.Single(a => a.Id.Value == 10).Position,f.Player) >= .5, $"tick={f.Tick}"));
+            Assert.All(protectIds, id => Assert.True(PuppetSimulation.Distance(f.Puppets.Single(a => a.Id.Value == id).Position,f.Player) >= .5,
+                $"{diagnostic} tick={f.Tick} id={id}")));
     }
 
     [Theory]

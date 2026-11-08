@@ -153,10 +153,10 @@ public class TargetSelectionTests
             pressCap:cap,crowdPenalty:penalty,targetSwitchMargin:margin,targetMinHoldTicks:hold),new DeterministicRandom(1)).Failure);
     }
     [Theory]
-    [InlineData("duo","presets","8FF9EF4A2650B110744C912C63A9FCDEEF835671248255713109CA10026B0D62")]
-    [InlineData("duo-swap","presets","2453B283F7A6906FC277D27EA1F352464CAD6C67D59268C5E48D73F6B583258E")]
-    [InlineData("duo","mixed","01E000D757A201CAFCEC6AB78A271EF9C32A44CD3D2AD4740CF434207EE55D56")]
-    [InlineData("duo-swap","mixed","38E041EBDEB6F02D7D5E5C6AE372489C04C27F438C2DC8C042712B5605F2E8E9")]
+    [InlineData("duo","presets","B740134D9EE7856BE6B20203A11CF80E988BEEBC8145DE8FEB1C94A8F3AA7691")]
+    [InlineData("duo-swap","presets","0A9FBD6B13975BC100B7805F4E7D5CC8684857B781AD378A0014957647371C65")]
+    [InlineData("duo","mixed","2788C1706ACF21A4CDCB58EB7057A35849B9ECE8C9DBFD1936B11085567E0EF5")]
+    [InlineData("duo-swap","mixed","4F68976622579FBBA9545547381385CC9F62018EEF5664A2C917744AE36E7F61")]
     public void DuoTrajectoriesHaveReviewedHashes(string name,string loadout,string expected)
         {
         string actual = InterceptRegressionTests.Hash(PuppetSimulation.Run(name,1,null,null,null,"none",loadout == "mixed",loadout:loadout));

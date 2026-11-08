@@ -167,7 +167,7 @@ public sealed class PuppetBrainTests
         Assert.Equal(new Vec2(0, 0), agent.Position);
         Assert.Equal(agent.Position, brain.GetDecision(agent.Id).Value.Goal);
         world.UpdatePosition(new AgentId(1), new Vec2(2.001, 0), new Vec2(1, 0));
-        Run(brain, 1, 30);
+        Run(brain, 1, new PuppetSettings().ReevaluationIntervalTicks);
         Assert.False(Score(brain, 10, ActionIds.Attack).Eligible);
         Assert.Equal(ActionIds.Approach, world.Get(agent.Id).Value.CurrentAction);
     }
