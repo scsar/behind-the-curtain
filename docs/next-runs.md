@@ -497,7 +497,10 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/S2.md
   ```
 
-- [ ] **기본값 반영 (Core)** — 명령은 Play 확인 뒤에 쓴다. 먼저 U7 인스펙터에서 `PuppetSettings.reevaluationIntervalTicks=10`으로 F5 비교(굼뜸이 줄었는지, 산만하거나 떨리지 않는지, 견제 리듬이 보이는지). 같이 넣을 값은 F6 줄로 모은다. 판단 주기가 바뀌면 모든 궤적이 바뀌므로 해시 갱신을 허락하되 시나리오마다 이유와 전후 지표를 적게 하고, 막아서기 품질이 나빠지면 갱신 대신 원인을 보고하게 한다.
+- [ ] **D1 판단 주기 기본값 30 → 10 (Core)** — U7 Play(2026-11-08): "확실히 줄었고 리듬 괜찮아지고 덜 떤다". 기본값 하나만 바꾼다. 기본 설정으로 도는 해시는 갱신하되 시나리오마다 전후 지표를 적고, 금지 패턴 실패나 막아서기 품질 저하면 멈추고 보고. 사전 기대: 탐색 baseline 행 = S2의 주기 10 행(forbidden 0, stutter 0, mean 21.61, contracts27 0). 씬의 PuppetTuning 목록에 30이 저장돼 있으면 덮어쓰므로 확인.
+  ```powershell
+  jevcode run --tag feature --prompt-file docs/runs/D1.md
+  ```
 
 - [ ] **U8 마리오네트 모양과 행동 자세 (Unity)** — 상자로는 동작이 읽히지 않는다는 Play 피드백(2026-11-08). 결(T16b-3b)의 미묘한 차이를 Play로 보려면 먼저 행동이 보여야 해서 3b 앞에 둔다. 상자는 콜라이더·연결부 기준으로 남기고 시각 자식만 더한다. 이동 방향(앞으로 숙임/뒤로 젖힘), 공격 준비와 바닥 경고 동기화, 견제 네 단계, 막아서기 자세, F2로 상자와 비교. Unity에서는 장력·피해가 연결되지 않아 waver·그로기·쓰러짐 자세는 범위 밖. Blender 모델(따로 조각난 마리오네트 부위)은 이걸로 Play한 뒤 부족하면 검토한다. **Unity 에디터를 열어 두고, MCP for Unity와 Blender MCP는 끄고 돌린다.**
   ```powershell
