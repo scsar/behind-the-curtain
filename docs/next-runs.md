@@ -518,9 +518,15 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/T16b-3b-1.md
   ```
 
-- [ ] **T16b-3b-1f hold 경계와 intercept ↔ waver의 여유 구간 (Core, fix)** — 3b-1이 남긴 실패 2개를 기준을 바꾸지 않고 통과시킨다. hold는 들어갈 때만 위협 반경 + 0.5m(임의값). intercept ↔ waver는 먼저 tick별로 추적하고, 가설(공격 거리 안에서 막아서기가 0이 되고 장력이 낮아 waver가 채움)이 맞을 때만 그 조건에 여유 구간을 둔다. 틀리면 멈추고 보고. 그다음 순서(2026-11-08 결정): U9(결 표시) → U10(최소 피해 연결) → T16b-3c-0(역할 잠금 풀기) → T16b-3c-1(회복 + 보호). 회복은 `Heal` 능력이 여는 행동이고(배역이 아님), 체력만, 채널링·피격 시 취소. **원칙: 역할에 제약받지 않는다.**
+- [x] **T16b-3b-1f hold 경계와 intercept ↔ waver의 여유 구간 (Core, fix)** — 거절·되돌림(`20261108-214129-7c27`, 명령 결함, 평가 본 집합). 85만 토큰, 5분. 에이전트는 명령대로 해시를 갱신하지 않고 멈춤(올바름). hold 여유 구간은 성공(bold 계약 통과). intercept는 가설이 맞았지만(추적: 장력 0.4에서 intercept 1.08, attack 0.33, waver 0.60. 공격 거리 안에서 intercept가 0이 되고 attack이 waver에 짐) **여유 구간 해법이 틀려** 뒤집히는 지점만 옮겼고, 결 0의 기본 tension/healer에서 새 흔들림이 생김. 실패 9: 위 흔들림 계열 4, healer 해시 1, `OscillationTests`가 주기별 "알려진 실패 수"(0/1/1/0)를 고정해 둔 탓 3(S2 리뷰 포인트가 테스트로 굳음, 불변식 원칙 위반), 계약 실패 줄 때문에 출력 줄 수가 달라진 `SweepTests` 1. 요청 밖 `docs/evidence/`(로그 7개)는 되돌림으로 삭제. 결정: 다음은 "넘겨받은 공격이 막아서기의 우선순위를 이어받는다". → T16b-3b-1r
+  3b-1f 명령의 원래 설명: 3b-1이 남긴 실패 2개를 기준을 바꾸지 않고 통과시킨다. hold는 들어갈 때만 위협 반경 + 0.5m(임의값). intercept ↔ waver는 먼저 tick별로 추적하고, 가설(공격 거리 안에서 막아서기가 0이 되고 장력이 낮아 waver가 채움)이 맞을 때만 그 조건에 여유 구간을 둔다. 틀리면 멈추고 보고. 그다음 순서(2026-11-08 결정): U9(결 표시) → U10(최소 피해 연결) → T16b-3c-0(역할 잠금 풀기) → T16b-3c-1(회복 + 보호). 회복은 `Heal` 능력이 여는 행동이고(배역이 아님), 체력만, 채널링·피격 시 취소. **원칙: 역할에 제약받지 않는다.**
   ```powershell
   jevcode run --tag fix --prompt-file docs/runs/T16b-3b-1f.md
+  ```
+
+- [ ] **T16b-3b-1r hold 여유 구간 + 막아서기를 이어받는 공격 (Core, retry)** — hold는 3b-1f 그대로. 막아서던 개체가 칠 수 있게 되면 그 판단의 attack 배역 몫을 max(attack, intercept가 받았을 몫)으로("보호하려고 친다"). intercept ↔ attack은 공격 거리 경계 전환이라 진동으로 세지 않음. `OscillationTests`의 고정 기대값을 "출력 = 독립 실행" + "현재 기본 주기에서 0"이라는 불변식으로 바꿈(이 테스트만 수정 허락).
+  ```powershell
+  jevcode run --tag retry --prompt-file docs/runs/T16b-3b-1r.md
   ```
 
 ## 참고
