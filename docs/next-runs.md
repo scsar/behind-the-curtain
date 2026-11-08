@@ -501,6 +501,8 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   ```powershell
   jevcode run --tag fix --prompt-file docs/runs/D1f.md
   ```
+
+- [x] **D1f 판단 주기 10에 맞춘 테스트 수정과 해시 갱신 (tests)** — `e310dc6`. 48만 토큰, 3분. 675 통과. 공격 테스트는 한 줄(다음 판단 시점까지), passby는 Protect 둘 중 누구든 + 기한 90 tick(실측 74, 담당 11 → 10, 유지 100%), 해시 14개는 문자열만 갱신. 에이전트가 주기 30을 주입해 예전 해시 14개를 모두 재현한 뒤 갱신(해시 변화의 원인이 판단 주기 하나라는 직접 증거). 최대 행동 전환 1 → 2(approach, healer, passby), 기준 안. **판단 주기 10 작업 끝.**
   U7 Play(2026-11-08): "확실히 줄었고 리듬 괜찮아지고 덜 떤다". 기본값 하나만 바꾼다. 기본 설정으로 도는 해시는 갱신하되 시나리오마다 전후 지표를 적고, 금지 패턴 실패나 막아서기 품질 저하면 멈추고 보고. 사전 기대: 탐색 baseline 행 = S2의 주기 10 행(forbidden 0, stutter 0, mean 21.61, contracts27 0). 씬의 PuppetTuning 목록에 30이 저장돼 있으면 덮어쓰므로 확인.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/D1.md
