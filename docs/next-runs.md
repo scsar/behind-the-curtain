@@ -497,7 +497,11 @@ T10 시뮬레이션에서 발견한 것: 기본값(Decay 0.5, 임계값 0.5)에�
   jevcode run --tag feature --prompt-file docs/runs/S2.md
   ```
 
-- [ ] **D1 판단 주기 기본값 30 → 10 (Core)** — U7 Play(2026-11-08): "확실히 줄었고 리듬 괜찮아지고 덜 떤다". 기본값 하나만 바꾼다. 기본 설정으로 도는 해시는 갱신하되 시나리오마다 전후 지표를 적고, 금지 패턴 실패나 막아서기 품질 저하면 멈추고 보고. 사전 기대: 탐색 baseline 행 = S2의 주기 10 행(forbidden 0, stutter 0, mean 21.61, contracts27 0). 씬의 PuppetTuning 목록에 30이 저장돼 있으면 덮어쓰므로 확인.
+- [x] **D1 판단 주기 기본값 30 → 10 (Core)** — 수락하고 커밋(`ad3ff80`, 테스트 16개 실패 상태로 남기고 D1f에서 고침. 처음엔 거절로 저장했다가 잣대 "살려서 고칠 결과면 수락"에 맞춰 수락으로 다시 저장). 100만 토큰, 18분. 명령 결함: 해시 테스트와 주기를 명시한 테스트만 찾고, 기본값에 기대어 시간을 재는 테스트 둘을 놓침. 에이전트는 해시를 갱신하지 않고 멈춰 보고함(올바른 행동). 실패: 해시 14(Legacy 7, NonIntercept 3, Duo 4), `AttackRequiresHumanInRangeAndDoesNotMoveOrDamage`(주기 30이면 30 tick 안에 판단 한 번이라는 암묵 전제, 동작은 정상), `PassbyRecoversWithoutCrossingPlayer`(주기 10에서 지나쳐진 가드 10은 쫓아가 공격하고 가드 11이 75 tick에 막아서기를 넘겨받음. 테스트는 가드 10만 잼). 지표: 금지 패턴 통과, 막아서기 품질 healer 80 → 100%, passby 51.7 → 50.0%, 몰림 15.3% 그대로, 탐색 baseline = S2 주기 10 행. 결정: passby는 (a) 넘겨받기도 정상. 실행 전 임시 테스트로 확인: 공격 테스트는 "다음 판단 시점까지"로 바꾸면 통과, passby는 가드 둘 중 누구든으로 바꿔도 복귀 147 tick(지나침 73, 기준 133 초과) → 기한을 90 tick(임의값)으로 완화하기로 결정. 넘겨받은 가드가 사람 뒤를 따라가다 선에 붙는 지연은 "막아서기 넘겨받기" 후보 run으로 따로.
+  ```powershell
+  jevcode run --tag fix --prompt-file docs/runs/D1f.md
+  ```
+  U7 Play(2026-11-08): "확실히 줄었고 리듬 괜찮아지고 덜 떤다". 기본값 하나만 바꾼다. 기본 설정으로 도는 해시는 갱신하되 시나리오마다 전후 지표를 적고, 금지 패턴 실패나 막아서기 품질 저하면 멈추고 보고. 사전 기대: 탐색 baseline 행 = S2의 주기 10 행(forbidden 0, stutter 0, mean 21.61, contracts27 0). 씬의 PuppetTuning 목록에 30이 저장돼 있으면 덮어쓰므로 확인.
   ```powershell
   jevcode run --tag feature --prompt-file docs/runs/D1.md
   ```
