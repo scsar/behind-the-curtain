@@ -20,8 +20,8 @@ namespace BehindTheCurtain.Core
             double midAttackRange = 3.5, double rangedAttackRange = 8, double interceptStandOff = 1.0,
             double interceptHoldTolerance = 0.3, double interceptClearance = 1.0,
             double interceptWaypointTolerance = 0.2, double targetDistanceScale = 4, int pressCap = 2,
-            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30)
-            : this(new BasicActionSettings(), interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, targetDistanceScale, pressCap, crowdPenalty, targetSwitchMargin, targetMinHoldTicks) { }
+            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30, double holdEntryMargin = 0.5)
+            : this(new BasicActionSettings(), interceptDistance, spreadDistance, attackRange, moveSpeed, arenaHalfSize, ticksPerSecond, distanceScale, approachWeight, interceptWeight, spreadWeight, holdWeight, attackWeight, interceptPositionFloor, persistenceBonus, threatRadius, keepMin, keepMax, weightJitter, reevaluationIntervalTicks, keepDistanceWeight, passiveInterceptScale, keepDistanceSpeed, attackArrivalMargin, guardRearOffset, guardHoldScale, roleWeights, individualThreatInterceptScale, midAttackRange, rangedAttackRange, interceptStandOff, interceptHoldTolerance, interceptClearance, interceptWaypointTolerance, targetDistanceScale, pressCap, crowdPenalty, targetSwitchMargin, targetMinHoldTicks, holdEntryMargin) { }
 
         public PuppetSettings(BasicActionSettings basicActions, double interceptDistance = 1.5, double spreadDistance = 3,
             double attackRange = 2, double moveSpeed = 3, double arenaHalfSize = 10,
@@ -37,7 +37,7 @@ namespace BehindTheCurtain.Core
             double midAttackRange = 3.5, double rangedAttackRange = 8, double interceptStandOff = 1.0,
             double interceptHoldTolerance = 0.3, double interceptClearance = 1.0,
             double interceptWaypointTolerance = 0.2, double targetDistanceScale = 4, int pressCap = 2,
-            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30)
+            double crowdPenalty = 0.3, double targetSwitchMargin = 1.3, int targetMinHoldTicks = 30, double holdEntryMargin = 0.5)
         {
             TargetDistanceScale = targetDistanceScale; PressCap = pressCap; CrowdPenalty = crowdPenalty;
             TargetSwitchMargin = targetSwitchMargin; TargetMinHoldTicks = targetMinHoldTicks;
@@ -55,7 +55,7 @@ namespace BehindTheCurtain.Core
             IndividualThreatInterceptScale = individualThreatInterceptScale;
             GuardRearOffset = guardRearOffset; GuardHoldScale = guardHoldScale;
             KeepDistanceSpeed = keepDistanceSpeed; AttackArrivalMargin = attackArrivalMargin;
-            ThreatRadius = threatRadius; KeepMin = keepMin; KeepMax = keepMax;
+            HoldEntryMargin = holdEntryMargin; ThreatRadius = threatRadius; KeepMin = keepMin; KeepMax = keepMax;
             WeightJitter = weightJitter; ReevaluationIntervalTicks = reevaluationIntervalTicks;
             KeepDistanceWeight = keepDistanceWeight; PassiveInterceptScale = passiveInterceptScale;
             InterceptDistance = interceptDistance; SpreadDistance = spreadDistance;
@@ -175,6 +175,8 @@ namespace BehindTheCurtain.Core
         public double GuardHoldScale { get; }
         public double KeepDistanceSpeed { get; }
         public double AttackArrivalMargin { get; }
+        // Provisional, arbitrarily chosen hold entry hysteresis (metres).
+        public double HoldEntryMargin { get; }
         public double ThreatRadius { get; }
         public double KeepMin { get; private set; }
         public double KeepMax { get; private set; }
@@ -227,7 +229,7 @@ namespace BehindTheCurtain.Core
             && AiNumber.Weight(FlankNonMeleeScale) && AiNumber.Weight(HarassMeleeScale) && AiNumber.Weight(IndividualThreatInterceptScale) && ValidRoleWeights && Positive(GuardRearOffset) && Positive(GuardHoldScale) && Positive(KeepDistanceSpeed) && AttackArrivalMargin >= 0
             && Positive(MidAttackRange) && Positive(RangedAttackRange)
             && AttackArrivalMargin < MidAttackRange && AttackArrivalMargin < RangedAttackRange
-            && AttackArrivalMargin < AttackRange && Positive(ThreatRadius) && Positive(KeepMin) && KeepMax > KeepMin
+            && AttackArrivalMargin < AttackRange && Positive(ThreatRadius) && AiNumber.Weight(HoldEntryMargin) && Positive(KeepMin) && KeepMax > KeepMin
             && AiNumber.Finite(KeepMax) && WeightJitter >= 0 && WeightJitter < 1
             && ReevaluationIntervalTicks > 0 && Positive(KeepDistanceWeight) && AiNumber.Weight(PassiveInterceptScale)
             && Positive(InterceptStandOff) && AiNumber.Weight(InterceptHoldTolerance)

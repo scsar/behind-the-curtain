@@ -30,5 +30,6 @@ namespace BehindTheCurtain.Core
         public PuppetStateEvent? StateEvent { get; }
         public string IntentionKey { get; }
         public double Intention { get; }
+        public string? Reason { get; internal set; }
     }
 }

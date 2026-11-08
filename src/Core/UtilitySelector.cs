@@ -29,6 +29,8 @@ namespace BehindTheCurtain.Core
         public double Score { get; }
         public double RoleShare { get; internal set; }
         public double PullShare { get; internal set; }
+        /// <summary>Unmixed intercept role score offered to a protective attack; zero otherwise.</summary>
+        public double InheritedRoleScore { get; internal set; }
         public bool Eligible => Score > 0;
     }
 
@@ -129,11 +131,12 @@ namespace BehindTheCurtain.Core
                 double bonus = weighted > 0 && action.Id == agent.CurrentAction ? settings.PersistenceBonus : 0;
                 double tension = action.TensionWeighted ? world.GetPuppetState(agentId).Value.Tension : 1;
                 // Preserve T15 persistence at full tension; it belongs to the directed role share.
-                double roleShare = tension * (weighted + bonus);
+                double inherited = action.RoleShareFloor?.Invoke(context) ?? 0;
+                double roleShare = tension * Math.Max(weighted + bonus, inherited);
                 double pullShare = (1 - tension) * action.Pull;
                 double score = roleShare + pullShare;
                 if (!AiNumber.Finite(score)) return AiResult<UtilitySelection>.Fail(AiFailure.InvalidWeight);
-                scores.Add(new ActionScore(action.Id, values, product, action.BaseWeight, intention, bonus, score) { RoleShare = roleShare, PullShare = pullShare });
+                scores.Add(new ActionScore(action.Id, values, product, action.BaseWeight, intention, bonus, score) { RoleShare = roleShare, PullShare = pullShare, InheritedRoleScore = inherited });
                 if (score <= 0 || score < highest) continue;
                 if (score > highest) { best.Clear(); highest = score; }
                 best.Add(action.Id);

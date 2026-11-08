@@ -18,6 +18,7 @@ namespace BehindTheCurtain.Core
         internal IReadOnlyList<UtilityAction> Create(TargetRole role, DeterministicRandom random, DirectorProfile profile, Loadout loadout)
         {
             var result = new List<UtilityAction>();
+            UtilityAction? intercept = null;
             foreach (var id in new[] { ActionIds.Approach, ActionIds.Intercept, ActionIds.Spread,
                 ActionIds.Hold, ActionIds.Attack, ActionIds.KeepDistance, ActionIds.Pressure, ActionIds.Flank, ActionIds.Harass, ActionIds.Surround })
             {
@@ -29,10 +30,22 @@ namespace BehindTheCurtain.Core
                 double jitter = 1 + (random.NextDouble() * 2 - 1) * settings.WeightJitter;
                 // Capability eligibility is checked before role/situation. Intercept has no pull share.
                 // A role-specific intention explicitly enables a default-zero candidate at unit weight.
-                result.Add(new UtilityAction(id, new[] { Factor("contract", c =>
+                var candidate = new UtilityAction(id, new[] { Factor("contract", c =>
                     (id == ActionIds.Intercept && !loadout.HasCapability(CapabilityTag.Protect) ? 0 :
                         (weight > 0 || (id != ActionIds.Pressure && c.Blackboard.HasIntention(role + ":" + id)) ? 1 : 0) * Suitability(c, id))) },
-                    (weight > 0 ? weight : 1) * jitter * preference) { TensionWeighted = true });
+                    (weight > 0 ? weight : 1) * jitter * preference) { TensionWeighted = true };
+                if (id == ActionIds.Intercept) intercept = candidate;
+                if (id == ActionIds.Attack && intercept != null && loadout.HasCapability(CapabilityTag.Protect))
+                {
+                    var donor = intercept;
+                    candidate.RoleShareFloor = c => ProtectiveAttack(c)
+                        && (settings.GetRoleWeight(role, ActionIds.Intercept) > 0 || c.Blackboard.HasIntention(role + ":" + ActionIds.Intercept))
+                        ? InterceptSuitability(c, true) * donor.BaseWeight * c.Blackboard.RoleIntention(role, ActionIds.Intercept)
+                            + (c.Agent.CurrentAction == ActionIds.Intercept && InterceptSuitability(c, true) > 0
+                                && c.Blackboard.RoleIntention(role, ActionIds.Intercept) > 0 ? settings.PersistenceBonus : 0)
+                        : 0;
+                }
+                result.Add(candidate);
             }
             if (profile.EnableWaver) result.Add(new UtilityAction(ActionIds.Waver, Array.Empty<UtilityConsideration>(), 0)
                 { TensionWeighted = true, Pull = profile.WaverPull });
@@ -57,16 +70,31 @@ namespace BehindTheCurtain.Core
                 return target != null && Distance(c.Agent.Position, target.Position) > c.World.GetAttackRange(c.Agent.Id, settings).Value ? 1 : 0;
             }
             if (id == ActionIds.Attack) return AttackTarget(c) == null ? 0 : 1;
-            if (id == ActionIds.Hold) return distance > settings.ThreatRadius ? 1 : 0;
+            if (id == ActionIds.Hold) return distance > settings.ThreatRadius
+                + (c.Agent.CurrentAction == ActionIds.Hold ? 0 : settings.HoldEntryMargin) ? 1 : 0;
             if (id == ActionIds.KeepDistance) return human == null ? 0 :
                 distance <= settings.KeepMax || c.Agent.CurrentAction == id
                     || c.Blackboard.HasIntention(c.Agent.Role + ":" + id) ? 1 : 0;
-            if (id == ActionIds.Intercept)
-            {
+            if (id == ActionIds.Intercept) return InterceptSuitability(c, false);
+            var nearest = Nearest(c, a => a.Side == Side.Puppets && !a.Id.Equals(c.Agent.Id));
+            return nearest == null ? 0 : AiNumber.Clamp(1 - Distance(c.Agent.Position, nearest.Position) / settings.SpreadDistance);
+        }
+
+        private bool ProtectiveAttack(UtilityContext c)
+        {
+            var healer = Healer(c);
+            var threat = Threat(c, TargetFactIds.HealerThreat);
+            return healer != null && !healer.Id.Equals(c.Agent.Id) && threat != null
+                && AttackTarget(c) != null
+                && Distance(threat.Position, healer.Position) >= Distance(c.Agent.Position, healer.Position);
+        }
+
+        private double InterceptSuitability(UtilityContext c, bool inherit)
+        {
                 var healer = Healer(c);
                 var threat = Threat(c, TargetFactIds.HealerThreat);
                 if (healer == null || healer.Id.Equals(c.Agent.Id) || threat == null) return 0;
-                if (AttackTarget(c) != null && Distance(threat.Position, healer.Position) >= Distance(c.Agent.Position, healer.Position)) return 0;
+                if (!inherit && ProtectiveAttack(c)) return 0;
                 var reservation = c.Blackboard.GetReservation("intercept:" + healer.Id.Value, c.Tick);
                 if (reservation.Success && !reservation.Value.Owner.Equals(c.Agent.Id)) return 0;
                 var tactic = c.Blackboard.GetFact<TacticId>("tactic");
@@ -74,9 +102,6 @@ namespace BehindTheCurtain.Core
                 return tactic.Success && tactic.Value == TacticId.GuardHealer ? 1
                     : Math.Max(settings.PassiveInterceptScale, (strength.Success ? AiNumber.Clamp(strength.Value) : 0)
                         * settings.IndividualThreatInterceptScale);
-            }
-            var nearest = Nearest(c, a => a.Side == Side.Puppets && !a.Id.Equals(c.Agent.Id));
-            return nearest == null ? 0 : AiNumber.Clamp(1 - Distance(c.Agent.Position, nearest.Position) / settings.SpreadDistance);
         }
 
         internal void Reserve(UtilityContext c, string? action)

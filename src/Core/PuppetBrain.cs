@@ -128,13 +128,17 @@ namespace BehindTheCurtain.Core
                     selected = AiResult<UtilitySelection>.Ok(new UtilitySelection(ActionIds.Attack,
                         selected.Value.EvaluatedAtTick, selected.Value.Reevaluated, selected.Value.Scores));
                 var decision = new PuppetDecision(puppet.Id, selected.Value, Clamp(resolved.Goal), resolved.Target) { Role = agent.Role, HarassPhase = puppet.Actions.Phase, SurroundSlot = puppet.Actions.SurroundSlot };
-                if (selected.Value.ActionId != null && (selected.Value.ActionId == ActionIds.Waver || settings.GetRoleWeight(agent.Role, selected.Value.ActionId) == 0))
+                bool protectiveAttack = false;
+                foreach (var score in selected.Value.Scores)
+                    if (score.ActionId == selected.Value.ActionId && score.InheritedRoleScore > 0) protectiveAttack = true;
+                if (selected.Value.ActionId != null && (protectiveAttack || selected.Value.ActionId == ActionIds.Waver || settings.GetRoleWeight(agent.Role, selected.Value.ActionId) == 0))
                 {
                     PuppetStateEvent? cause = null;
                     foreach (var e in world.StateEvents)
                         if (e.AgentId.Equals(agent.Id) && (e.Kind == PuppetStateEventKind.ValueChanged || e.Kind == PuppetStateEventKind.StatusChanged)) cause = e;
                     decision.Cause = new DecisionCause(cause, agent.Role + ":" + selected.Value.ActionId,
-                        context.Blackboard.RoleIntention(agent.Role, selected.Value.ActionId));
+                        context.Blackboard.RoleIntention(agent.Role, selected.Value.ActionId))
+                        { Reason = protectiveAttack ? "protective attack(막아서기 상속)" : null };
                 }
                 pending.Add(decision);
                 pressure[agent.Id] = (decision.Selection.ActionId, decision.Target);

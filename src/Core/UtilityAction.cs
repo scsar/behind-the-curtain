@@ -68,6 +68,7 @@ namespace BehindTheCurtain.Core
         }
         internal bool TensionWeighted { get; set; }
         internal double Pull { get; set; }
+        internal Func<UtilityContext, double>? RoleShareFloor { get; set; }
         public string Id { get; }
         public IReadOnlyList<UtilityConsideration> Considerations { get; }
         public double BaseWeight { get; }

@@ -58,6 +58,7 @@ public sealed record PuppetFrame(int Tick, Vec2 Player, AgentState[] Puppets)
     public AgentId? TuneTarget { get; init; }
     public double TuneAmount { get; init; }
     public double Budget { get; init; }
+    public IReadOnlyDictionary<int, string> DecisionReasons { get; init; } = new Dictionary<int, string>();
 }
 
 public sealed class PuppetTrajectory
@@ -249,7 +250,9 @@ public static class PuppetSimulation
             Vec2 TargetPosition(AgentState agent) => players.FirstOrDefault(p => agent.Target.HasValue && p.Id.Equals(agent.Target.Value))?.Position ?? player;
             result.Frames.Add(new PuppetFrame(tick, player, after) { Players = players,
                 HarassPhases = after.ToDictionary(a => a.Id.Value, a => brain.GetDecision(a.Id).Success ? brain.GetDecision(a.Id).Value.HarassPhase : null), States = world.GetPuppetStates().ToArray(),
-                TuneTarget = brain.TuneTarget, TuneAmount = brain.TuneAmount, Budget = brain.CurrentTuneBudgetPerSecond });
+                TuneTarget = brain.TuneTarget, TuneAmount = brain.TuneAmount, Budget = brain.CurrentTuneBudgetPerSecond,
+                DecisionReasons = after.Where(a => brain.GetDecision(a.Id).Success && brain.GetDecision(a.Id).Value.Cause?.Reason != null)
+                    .ToDictionary(a => a.Id.Value, a => brain.GetDecision(a.Id).Value.Cause!.Reason!) });
             var changedActions = new List<string?>();
             for (int i = 0; i < after.Length; i++)
             {
@@ -432,6 +435,9 @@ public static class PuppetSimulation
             foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
                 output.WriteLine($"targets tick={frame.Tick} " + string.Join(" ", frame.Players.Select(a => FormattableString.Invariant($"player{a.Id.Value}=({a.Position.X:F2},{a.Position.Z:F2})"))) + " " +
                     string.Join(" ", frame.Puppets.Select(a => $"{a.Id.Value}:{a.CurrentAction}->player{a.Target?.Value.ToString() ?? "-"}")));
+        foreach (var frame in result.Frames.Where(f => f.Tick % settings.SampleTicks == 0))
+            foreach (var reason in frame.DecisionReasons)
+                output.WriteLine($"decision tick={frame.Tick} agent={reason.Key} {reason.Value}");
         foreach (var e in result.Events)
             output.WriteLine(FormattableString.Invariant($"event tick={e.Tick} agent={e.AgentId.Value} {e.Kind} {e.Cause.Kind} {e.Before.Status}->{e.After.Status} value={e.ValueId} T={e.Before.Tension:F4}->{e.After.Tension:F4} P={e.Before.Posture:F2}->{e.After.Posture:F2} H={e.Before.Health:F2}->{e.After.Health:F2} reclaim={e.ReclaimedAmount:F3} budget={e.BudgetAfter:F3}"));
         output.WriteLine(FormattableString.Invariant(
